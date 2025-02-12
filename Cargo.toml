@@ -1,0 +1,9 @@
+[package]
+name = "dodger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ggez = "0.6.0-rc.1"
+rand = "0.8"
+
