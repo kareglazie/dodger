@@ -1,16 +1,20 @@
-use ggez::graphics::{Color, Image};
+use crate::utils::RectSize;
+use ggez::{
+    graphics::{Color, Image},
+    mint::{Point2, Vector2},
+};
 
 #[derive(Clone)]
 pub struct IconButton {
-    pub coords_dest: Coordinates,
-    pub coords_scale: Coordinates,
+    pub coords: Point2<f32>,
+    pub scaling: Vector2<f32>,
     pub icon: Image,
 }
 impl IconButton {
-    pub fn new(coords_dest: Coordinates, coords_scale: Coordinates, icon: Image) -> Self {
+    pub fn new(coords: Point2<f32>, scaling: Vector2<f32>, icon: Image) -> Self {
         Self {
-            coords_dest,
-            coords_scale,
+            coords,
+            scaling,
             icon,
         }
     }
@@ -18,7 +22,7 @@ impl IconButton {
 
 #[derive(Clone)]
 pub struct TextButton {
-    pub coords_dest: Coordinates,
+    pub coords: Point2<f32>,
     pub size: RectSize,
     pub text: String,
     pub text_size: f32,
@@ -28,7 +32,7 @@ pub struct TextButton {
 
 impl TextButton {
     pub fn new(
-        coords_dest: Coordinates,
+        coords: Point2<f32>,
         size: RectSize,
         text: String,
         text_size: f32,
@@ -36,7 +40,7 @@ impl TextButton {
         button_color: Color,
     ) -> Self {
         Self {
-            coords_dest,
+            coords,
             size,
             text,
             text_size,
@@ -47,43 +51,19 @@ impl TextButton {
 }
 
 pub struct DrawText {
-    pub coords_dest: Coordinates,
+    pub coords: Point2<f32>,
     pub text: String,
     pub size: f32,
     pub color: Color,
 }
 
 impl DrawText {
-    pub fn new(coords_dest: Coordinates, text: String, size: f32, color: Color) -> Self {
+    pub fn new(coords: Point2<f32>, text: String, size: f32, color: Color) -> Self {
         Self {
-            coords_dest,
+            coords,
             text,
             size,
             color,
         }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Coordinates {
-    pub x: f32,
-    pub y: f32
-}
-
-impl From<(f32, f32)> for Coordinates {
-    fn from(coords: (f32, f32)) -> Self {
-        Self { x: coords.0, y: coords.1 }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct RectSize {
-    pub width: f32,
-    pub height: f32
-}
-
-impl From<(f32, f32)> for RectSize {
-    fn from(size: (f32, f32)) -> Self {
-        Self { width: size.0, height: size.1 }
     }
 }

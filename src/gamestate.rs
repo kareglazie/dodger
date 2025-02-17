@@ -1,11 +1,14 @@
 use std::time::{Duration, Instant};
 
-use ggez::event::{EventHandler, KeyCode, KeyMods};
-use ggez::graphics::{Color, Rect};
-use ggez::{graphics, Context, GameError, GameResult};
+use ggez::{
+    event::{EventHandler, KeyCode, KeyMods},
+    graphics::{clear, drawable_size, present, Color, Rect},
+    mint::{Point2, Vector2},
+    {Context, GameError, GameResult},
+};
 use rand::Rng;
 
-use crate::buttons::{Coordinates, DrawText, IconButton, RectSize, TextButton};
+use crate::buttons::{DrawText, IconButton, TextButton};
 use crate::levels::get_levels;
 use crate::objects::FallingObject;
 use crate::player::Player;
@@ -15,6 +18,7 @@ use crate::ui::{
     draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer,
     is_button_clicked,
 };
+use crate::utils::{DrawableObject, RectSize};
 
 pub struct GameState {
     total_score: i32,
@@ -40,9 +44,14 @@ impl GameState {
         level: usize,
         audio_manager: AudioManager,
     ) -> GameResult<Self> {
-        let player = Player::new(ctx, 400.0, 520.0, &resources.player_image);
+        let player = Player::new(
+            ctx,
+            Point2::from_slice(&[400.0, 520.0]),
+            Vector2::from_slice(&[0.2, 0.2]),
+            &resources.player_image,
+        );
         let restart_button = TextButton::new(
-            Coordinates::from((330.0, 350.0)),
+            Point2::from_slice(&[330.0, 350.0]),
             RectSize::from((140.0, 40.0)),
             "Restart".to_string(),
             30.0,
@@ -51,13 +60,13 @@ impl GameState {
         );
 
         let audio_button = IconButton::new(
-            Coordinates::from((graphics::drawable_size(ctx).0 - 50.0, 10.0)),
-            Coordinates::from((0.08, 0.08)),
+            Point2::from_slice(&[drawable_size(ctx).0 - 50.0, 10.0]),
+            Vector2::from_slice(&[0.08, 0.08]),
             audio_manager.speaker_icon,
         );
 
         let next_level_button = TextButton::new(
-            Coordinates::from((330.0, 350.0)),
+            Point2::from_slice(&[330.0, 350.0]),
             RectSize::from((140.0, 40.0)),
             "Next Level".to_string(),
             24.0,
@@ -87,8 +96,13 @@ impl GameState {
     fn create_falling_object(&mut self) {
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(0.0..780.0); // Случайная горизонтальная позиция
-        let is_good = self.falling_objects.len() % 5 != 0;
-        let object = FallingObject::new(x, 0.0, is_good, &self.resources);
+        let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
+        let object = FallingObject::new(
+            Point2::from_slice(&[x, 0.0]),
+            Vector2::from_slice(&[0.08, 0.08]),
+            is_good,
+            &self.resources,
+        );
         self.falling_objects.push(object);
     }
 
@@ -114,7 +128,7 @@ impl GameState {
 
         for (idx, is_good) in objects_to_remove {
             if is_good {
-                self.level_score += 10;
+                self.level_score += 10; // Поймал "хороший" объект -> + 10 очков
             }
             self.falling_objects.remove(idx);
         }
@@ -152,15 +166,15 @@ impl GameState {
 impl EventHandler<GameError> for GameState {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         let (width, height) = (
-            self.audio_button.icon.width() as f32 * self.audio_button.coords_scale.x,
-            self.audio_button.icon.height() as f32 * self.audio_button.coords_scale.y,
+            self.audio_button.icon.width() as f32 * self.audio_button.scaling.x,
+            self.audio_button.icon.height() as f32 * self.audio_button.scaling.y,
         );
 
         if is_button_clicked(
             ctx,
             Rect::new(
-                self.audio_button.coords_dest.x,
-                self.audio_button.coords_dest.y,
+                self.audio_button.coords.x,
+                self.audio_button.coords.y,
                 width,
                 height,
             ),
@@ -176,15 +190,20 @@ impl EventHandler<GameError> for GameState {
                     if is_button_clicked(
                         ctx,
                         Rect::new(
-                            self.next_level_button.coords_dest.x,
-                            self.next_level_button.coords_dest.y,
-                            self.next_level_button.size.width,
-                            self.next_level_button.size.height,
+                            self.next_level_button.coords.x,
+                            self.next_level_button.coords.y,
+                            self.next_level_button.size.w,
+                            self.next_level_button.size.h,
                         ),
                     ) {
                         self.level += 1;
                         self.resources = Resources::load_level(ctx, self.level);
-                        let player = Player::new(ctx, 400.0, 520.0, &self.resources.player_image);
+                        let player = Player::new(
+                            ctx,
+                            Point2::from_slice(&[400.0, 520.0]),
+                            Vector2::from_slice(&[0.2, 0.2]),
+                            &self.resources.player_image,
+                        );
                         self.next_level(&player)?;
                         self.reset(&player);
                     }
@@ -204,30 +223,31 @@ impl EventHandler<GameError> for GameState {
 
                 self.handle_collisions(ctx);
             }
-        } else if self.game_over && is_button_clicked(
+        } else if self.game_over
+            && is_button_clicked(
                 ctx,
                 Rect::new(
-                    self.restart_button.coords_dest.x,
-                    self.restart_button.coords_dest.y,
-                    self.restart_button.size.width,
-                    self.restart_button.size.height,
+                    self.restart_button.coords.x,
+                    self.restart_button.coords.y,
+                    self.restart_button.size.w,
+                    self.restart_button.size.h,
                 ),
             )
-            {
-                self.reset(&self.player.clone());
-            }
-        
+        {
+            self.reset(&self.player.clone());
+        }
 
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx, Color::from_rgb(0, 0, 0));
+        clear(ctx, Color::from_rgb(0, 0, 0));
 
         draw_background(ctx, &self.resources.background_image)?;
 
         let text = format!("Level: {}", self.level + 1);
-        let text_to_draw = DrawText::new(Coordinates::from((300.0, 10.0)), text, 24.0, Color::WHITE);
+        let text_to_draw =
+            DrawText::new(Point2::from_slice(&[300.0, 10.0]), text, 24.0, Color::WHITE);
 
         draw_text(ctx, text_to_draw)?;
 
@@ -240,17 +260,29 @@ impl EventHandler<GameError> for GameState {
         }
 
         let level_score_text = format!("Level Score: {}", self.level_score);
-        let level_score_text_to_draw =
-            DrawText::new(Coordinates::from((10.0, 10.0)), level_score_text, 24.0, Color::WHITE);
+        let level_score_text_to_draw = DrawText::new(
+            Point2::from_slice(&[10.0, 10.0]),
+            level_score_text,
+            24.0,
+            Color::WHITE,
+        );
         draw_score(ctx, level_score_text_to_draw)?;
 
         let total_score_text = format!("Level Score: {}", self.level_score + self.total_score);
-        let total_score_text_to_draw =
-            DrawText::new(Coordinates::from((10.0, 10.0)), total_score_text, 24.0, Color::WHITE);
+        let total_score_text_to_draw = DrawText::new(
+            Point2::from_slice(&[10.0, 10.0]),
+            total_score_text,
+            24.0,
+            Color::WHITE,
+        );
         draw_score(ctx, total_score_text_to_draw)?;
 
-        let game_over_text =
-            DrawText::new(Coordinates::from((300.0, 240.0)), "Game Over".to_string(), 48.0, Color::WHITE);
+        let game_over_text = DrawText::new(
+            Point2::from_slice(&[300.0, 240.0]),
+            "Game Over".to_string(),
+            48.0,
+            Color::WHITE,
+        );
         if self.game_over {
             draw_text(ctx, game_over_text)?;
 
@@ -259,7 +291,7 @@ impl EventHandler<GameError> for GameState {
 
         if self.levels_completed {
             let game_complete_text = DrawText::new(
-                Coordinates::from((200.0, 240.0)),
+                Point2::from_slice(&[200.0, 240.0]),
                 "You Win! Game Over".to_string(),
                 48.0,
                 Color::WHITE,
@@ -267,8 +299,12 @@ impl EventHandler<GameError> for GameState {
             draw_text(ctx, game_complete_text)?;
 
             let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
-            let final_score_text_to_draw =
-                DrawText::new(Coordinates::from((250.0, 300.0)), final_score_text, 32.0, Color::WHITE);
+            let final_score_text_to_draw = DrawText::new(
+                Point2::from_slice(&[250.0, 300.0]),
+                final_score_text,
+                32.0,
+                Color::WHITE,
+            );
             draw_text(ctx, final_score_text_to_draw)?;
         }
 
@@ -277,7 +313,7 @@ impl EventHandler<GameError> for GameState {
             && !self.levels_completed
         {
             let level_complete_text = DrawText::new(
-                Coordinates::from((250.0, 240.0)),
+                Point2::from_slice(&[250.0, 240.0]),
                 "Level Complete".to_string(),
                 48.0,
                 Color::WHITE,
@@ -294,7 +330,7 @@ impl EventHandler<GameError> for GameState {
         };
         draw_icon(ctx, &self.audio_button)?;
 
-        graphics::present(ctx)?;
+        present(ctx)?;
         Ok(())
     }
 
@@ -308,13 +344,13 @@ impl EventHandler<GameError> for GameState {
         if !self.game_over && !self.levels_completed {
             match keycode {
                 KeyCode::Left => {
-                    if self.player.x > 0.0 {
+                    if self.player.coords.x > 0.0 {
                         self.player.move_left();
                     }
                 }
                 KeyCode::Right => {
-                    let screen_width = graphics::drawable_size(ctx).0;
-                    if self.player.x < screen_width - self.player.width {
+                    let screen_width = drawable_size(ctx).0;
+                    if self.player.coords.x < screen_width - self.player.size.w {
                         self.player.move_right(ctx);
                     }
                 }

@@ -6,3 +6,4 @@ pub mod player;
 pub mod resources;
 pub mod sound;
 pub mod ui;
+pub mod utils;

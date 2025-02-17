@@ -1,42 +1,49 @@
 use ggez::{
-    graphics::{self, Image},
-    Context, GameResult,
+    graphics::Image,
+    mint::{Point2, Vector2},
 };
 
-use crate::resources::Resources;
+use crate::{
+    resources::Resources,
+    utils::{DrawableObject, RectSize},
+};
 
 pub struct FallingObject {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
+    pub coords: Point2<f32>,
+    pub size: RectSize,
+    pub scaling: Vector2<f32>,
     pub image: Image,
     pub is_good: bool,
 }
 
 impl FallingObject {
-    pub fn new(x: f32, y: f32, is_good: bool, resources: &Resources) -> Self {
+    pub fn new(
+        coords: Point2<f32>,
+        scaling: Vector2<f32>,
+        is_good: bool,
+        resources: &Resources,
+    ) -> Self {
         if is_good {
             let image = &resources.good_object_image;
-            let width = image.width() as f32;
-            let height = image.height() as f32;
+            let w = image.width() as f32 * scaling.x;
+            let h = image.height() as f32 * scaling.y;
+            let size = RectSize::from((w, h));
             FallingObject {
-                x,
-                y,
-                width: width * 0.08,
-                height: height * 0.08,
+                coords,
+                size,
+                scaling,
                 image: image.clone(),
                 is_good,
             }
         } else {
             let image = &resources.bad_object_image;
-            let width = image.width() as f32;
-            let height = image.height() as f32;
+            let w = image.width() as f32 * scaling.x;
+            let h = image.height() as f32 * scaling.y;
+            let size = RectSize::from((w, h));
             FallingObject {
-                x,
-                y,
-                width: width * 0.08,
-                height: height * 0.08,
+                coords,
+                size,
+                scaling,
                 image: image.clone(),
                 is_good,
             }
@@ -45,21 +52,23 @@ impl FallingObject {
 
     pub fn update(&mut self, resources: &Resources) {
         let speed = resources.level.fall_speed;
-        self.y += 5.0 * speed * 0.5;
+        self.coords.y += 5.0 * speed * 0.5;
+    }
+}
+
+impl DrawableObject for FallingObject {
+    fn coords(&self) -> Point2<f32> {
+        self.coords
     }
 
-    pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        // Отрисовываем изображение игрока
-        let draw_params = graphics::DrawParam::default()
-            .dest(ggez::mint::Point2 {
-                x: self.x,
-                y: self.y,
-            })
-            .scale(ggez::mint::Vector2 { x: 0.08, y: 0.08 });
-        graphics::draw(ctx, &self.image, draw_params)
+    fn image(&self) -> &Image {
+        &self.image
     }
 
-    pub fn rect(&self) -> graphics::Rect {
-        graphics::Rect::new(self.x, self.y, self.width, self.height)
+    fn scaling(&self) -> Vector2<f32> {
+        self.scaling
+    }
+    fn size(&self) -> &RectSize {
+        &self.size
     }
 }
