@@ -1,6 +1,9 @@
+use std::time::Instant;
+
 use ggez::{
-    graphics::Image,
+    graphics::{draw, Color, DrawParam, Image},
     mint::{Point2, Vector2},
+    Context, GameResult,
 };
 
 use crate::{
@@ -14,6 +17,9 @@ pub struct FallingObject {
     pub scaling: Vector2<f32>,
     pub image: Image,
     pub is_good: bool,
+    pub remove_timer: Option<Instant>,
+    pub blink_timer: Option<Instant>,
+    pub alpha: f32,
 }
 
 impl FallingObject {
@@ -34,6 +40,9 @@ impl FallingObject {
                 scaling,
                 image: image.clone(),
                 is_good,
+                remove_timer: None,
+                blink_timer: None,
+                alpha: 0.0,
             }
         } else {
             let image = &resources.bad_object_image;
@@ -46,6 +55,9 @@ impl FallingObject {
                 scaling,
                 image: image.clone(),
                 is_good,
+                remove_timer: None,
+                blink_timer: None,
+                alpha: 0.0,
             }
         }
     }
@@ -70,5 +82,19 @@ impl DrawableObject for FallingObject {
     }
     fn size(&self) -> &RectSize {
         &self.size
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let mut draw_params = DrawParam::default()
+            .dest(self.coords())
+            .scale(self.scaling());
+        if let Some(timer) = self.blink_timer {
+            let elapsed = timer.elapsed().as_secs_f32();
+            let blink_speed = 10.0;
+
+            self.alpha = (elapsed * blink_speed * std::f32::consts::PI).sin().abs();
+            draw_params = draw_params.color(Color::new(1.0, 1.0, 1.0, self.alpha));
+        }
+        draw(ctx, self.image(), draw_params)
     }
 }

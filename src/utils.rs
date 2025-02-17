@@ -27,7 +27,7 @@ pub trait DrawableObject {
     fn scaling(&self) -> Vector2<f32>;
     fn size(&self) -> &RectSize;
 
-    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         let draw_params = DrawParam::default()
             .dest(self.coords())
             .scale(self.scaling());

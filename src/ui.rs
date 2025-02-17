@@ -27,20 +27,20 @@ pub fn draw_background(ctx: &mut Context, image: &Image) -> GameResult<()> {
     Ok(())
 }
 
-pub fn draw_text(ctx: &mut Context, text_params: DrawText) -> GameResult<()> {
-    let text = Text::new((text_params.text, Font::default(), text_params.size));
+pub fn draw_text(ctx: &mut Context, text_params: DrawText, font: Font) -> GameResult<()> {
+    let text = Text::new((text_params.text, font, text_params.size));
     draw(ctx, &text, (text_params.coords, text_params.color))?;
     Ok(())
 }
 
-pub fn draw_timer(ctx: &mut Context, remaining_time: u64) -> GameResult<()> {
+pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameResult<()> {
     let timer_text = Text::new((
         (if remaining_time < 10 {
             format!("00:0{}", remaining_time)
         } else {
             format!("00:{}", remaining_time)
         }),
-        Font::default(),
+        font,
         24.0,
     ));
     draw(
@@ -51,8 +51,8 @@ pub fn draw_timer(ctx: &mut Context, remaining_time: u64) -> GameResult<()> {
     Ok(())
 }
 
-pub fn draw_score(ctx: &mut Context, text_to_draw: DrawText) -> GameResult<()> {
-    let level_score_display = Text::new((text_to_draw.text, Font::default(), text_to_draw.size));
+pub fn draw_score(ctx: &mut Context, text_to_draw: DrawText, font: Font) -> GameResult<()> {
+    let level_score_display = Text::new((text_to_draw.text, font, text_to_draw.size));
     queue_text(
         ctx,
         &level_score_display,
