@@ -3,7 +3,7 @@ use ggez::{
     Context, GameResult,
 };
 
-use crate::levels::{get_levels, Level};
+use crate::levels::Level;
 
 pub struct Fonts {
     pub level_font: Font,
@@ -41,8 +41,7 @@ impl Resources {
         format!("{}/{}", template, image_type)
     }
 
-    pub fn load_level(ctx: &mut Context, index: usize) -> GameResult<Self> {
-        let levels = get_levels();
+    pub fn load_level(ctx: &mut Context, index: usize, levels: &[Level]) -> GameResult<Self> {
         let level = &levels[index];
 
         let player_path = Self::formatted_image_path(level.image_template, "player.png");

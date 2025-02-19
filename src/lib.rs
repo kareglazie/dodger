@@ -1,6 +1,7 @@
 pub mod buttons;
 pub mod gamestate;
 pub mod levels;
+pub mod modes;
 pub mod objects;
 pub mod player;
 pub mod resources;
