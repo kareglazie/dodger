@@ -12,11 +12,15 @@ pub fn get_levels() -> Vec<Level> {
         },
         Level {
             image_template: "/Level2",
-            fall_speed: 2.0,
+            fall_speed: 1.5,
         },
         Level {
             image_template: "/Level3",
-            fall_speed: 3.0,
+            fall_speed: 2.0,
+        },
+        Level {
+            image_template: "/Level4",
+            fall_speed: 2.5,
         },
     ]
 }

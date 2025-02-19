@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use ggez::{
     event::{quit, EventHandler, KeyCode, KeyMods},
-    graphics::{clear, drawable_size, present, Color, Rect},
+    graphics::{clear, drawable_size, present, Color, Image, Rect},
     mint::{Point2, Vector2},
     Context, GameError, GameResult,
 };
@@ -35,10 +35,13 @@ pub struct GameState {
     level_start_time: Instant,
     paused_time: Option<Instant>,
     audio: AudioManager,
+    menu_background: Image,
     audio_button: IconButton,
     start_button: TextButton,
     exit_button: TextButton,
+    resume_button: TextButton,
     menu_button: TextButton,
+    pause_button: IconButton,
     next_level_button: TextButton,
     restart_button: TextButton,
     lives: i32,
@@ -46,6 +49,8 @@ pub struct GameState {
     level_complete_sound_played: bool,
     victory_sound_played: bool,
     game_over_sound_played: bool,
+    game_started: bool,
+    is_paused: bool,
 }
 
 impl GameState {
@@ -57,8 +62,8 @@ impl GameState {
     ) -> GameResult<Self> {
         let player = Player::new(
             ctx,
-            Point2::from_slice(&[400.0, 520.0]),
-            Vector2::from_slice(&[0.2, 0.2]),
+            Point2::from_slice(&[400.0, 460.0]),
+            Vector2::from_slice(&[0.25, 0.25]),
             &resources.player_image,
         );
         let restart_button = TextButton::new(
@@ -72,23 +77,40 @@ impl GameState {
 
         let audio_button = IconButton::new(
             Point2::from_slice(&[drawable_size(ctx).0 - 50.0, 60.0]),
-            Vector2::from_slice(&[0.08, 0.08]),
+            Vector2::from_slice(&[0.06, 0.06]),
             audio_manager.speaker_icon,
         );
 
+        let pause_button = IconButton::new(
+            Point2::from_slice(&[365.0, 255.0]),
+            Vector2::from_slice(&[0.2, 0.2]),
+            Image::new(ctx, "/pause_resume.png").unwrap(),
+        );
+
+        let menu_background = Image::new(ctx, "/menu_background.png").unwrap();
+
         let next_level_button = TextButton::new(
-            Point2::from_slice(&[330.0, 350.0]),
-            RectSize::from((140.0, 40.0)),
+            Point2::from_slice(&[315.0, 350.0]),
+            RectSize::from((150.0, 60.0)),
             "Next Level".to_string(),
-            24.0,
+            28.0,
             Color::WHITE,
-            Color::from_rgb(100, 100, 100),
+            Color::from_rgb(200, 200, 100),
         );
 
         let start_button = TextButton::new(
             Point2::from_slice(&[300.0, 200.0]),
             RectSize::from((200.0, 50.0)),
             "Start".to_string(),
+            30.0,
+            Color::from_rgb(100, 100, 100),
+            Color::WHITE,
+        );
+
+        let resume_button = TextButton::new(
+            Point2::from_slice(&[300.0, 200.0]),
+            RectSize::from((200.0, 50.0)),
+            "Resume".to_string(),
             30.0,
             Color::from_rgb(100, 100, 100),
             Color::WHITE,
@@ -121,6 +143,7 @@ impl GameState {
             current_level,
             levels,
             resources,
+            menu_background,
             falling_objects: Vec::new(),
             last_update: Instant::now(),
             paused_time: None,
@@ -128,15 +151,19 @@ impl GameState {
             level_start_time: Instant::now(),
             audio_button,
             start_button,
+            resume_button,
             exit_button,
             menu_button,
+            pause_button,
             next_level_button,
             restart_button,
-            lives: 1,
+            lives: 3,
             game_mode: GameMode::Menu,
             level_complete_sound_played: false,
             victory_sound_played: false,
             game_over_sound_played: false,
+            game_started: false,
+            is_paused: false,
         };
         Ok(s)
     }
@@ -147,7 +174,7 @@ impl GameState {
         let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
         let object = FallingObject::new(
             Point2::from_slice(&[x, 0.0]),
-            Vector2::from_slice(&[0.08, 0.08]),
+            Vector2::from_slice(&[0.06, 0.06]),
             is_good,
             &self.resources,
         );
@@ -197,25 +224,26 @@ impl GameState {
     }
 
     fn reset(&mut self, ctx: &mut Context) -> GameResult<()> {
-        if self.game_mode == GameMode::GameOver {
+        if self.game_mode == GameMode::GameOver || self.game_mode == GameMode::Victory {
             self.total_score = 0;
         } else {
             self.total_score += self.level_score;
         }
         self.falling_objects.clear();
         self.level_score = 0;
-        self.lives = 1;
+        self.lives = 3;
         self.level_start_time = Instant::now();
         self.last_update = Instant::now();
         self.level_complete_sound_played = false;
         self.victory_sound_played = false;
         self.game_over_sound_played = false;
+        self.is_paused = false;
         self.resources = Resources::load_level(ctx, self.current_level, &self.levels)?;
 
         self.player = Player::new(
             ctx,
-            Point2::from_slice(&[400.0, 520.0]),
-            Vector2::from_slice(&[0.2, 0.2]),
+            Point2::from_slice(&[400.0, 460.0]),
+            Vector2::from_slice(&[0.25, 0.25]),
             &self.resources.player_image,
         );
 
@@ -227,29 +255,32 @@ impl GameState {
     fn pause(&mut self) {
         if self.game_mode == GameMode::Playing {
             self.paused_time = Some(Instant::now());
-            self.game_mode = GameMode::Paused;
+            self.is_paused = true;
         }
     }
 
     fn resume(&mut self) {
-        println!("Вызывается метод resume.");
-        if self.game_mode == GameMode::Paused {
+        if self.is_paused {
             if let Some(paused_time) = self.paused_time {
                 let pause_duration = paused_time.elapsed();
                 self.level_start_time += pause_duration;
                 self.last_update += pause_duration;
             }
             self.paused_time = None;
-            self.game_mode = GameMode::Playing;
-            println!("Playing");
-            println!("Game mode is {:?}", self.game_mode);
+            self.is_paused = false;
         }
     }
 
     fn get_remaining_time(&self) -> u64 {
-        let elapsed = self.level_start_time.elapsed();
-        let remaining = Duration::from_secs(10).saturating_sub(elapsed);
-        remaining.as_secs()
+        if self.is_paused {
+            let elapsed = self.last_update.duration_since(self.level_start_time);
+            let remaining = Duration::from_secs(10).saturating_sub(elapsed);
+            remaining.as_secs()
+        } else {
+            let elapsed = self.level_start_time.elapsed();
+            let remaining = Duration::from_secs(10).saturating_sub(elapsed);
+            remaining.as_secs()
+        }
     }
 
     fn update_menu(&mut self, ctx: &mut Context) -> GameResult<()> {
@@ -281,11 +312,20 @@ impl GameState {
     }
 
     fn draw_menu(&mut self, ctx: &mut Context) -> GameResult<()> {
-        draw_button_with_text(
-            ctx,
-            self.start_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
+        draw_background(ctx, &self.menu_background)?;
+        if !self.game_started {
+            draw_button_with_text(
+                ctx,
+                self.start_button.clone(),
+                self.resources.fonts.lives_font,
+            )?;
+        } else {
+            draw_button_with_text(
+                ctx,
+                self.resume_button.clone(),
+                self.resources.fonts.lives_font,
+            )?;
+        }
         draw_button_with_text(
             ctx,
             self.exit_button.clone(),
@@ -295,6 +335,13 @@ impl GameState {
     }
 
     fn update_playing(&mut self, ctx: &mut Context) -> GameResult<()> {
+        if !self.game_started {
+            self.game_started = true;
+        }
+
+        if self.is_paused {
+            return Ok(());
+        }
         let (width, height) = (
             self.audio_button.icon.width() as f32 * self.audio_button.scaling.x,
             self.audio_button.icon.height() as f32 * self.audio_button.scaling.y,
@@ -332,7 +379,7 @@ impl GameState {
             }
         }
 
-        if self.last_update.elapsed() >= Duration::from_millis(1000) {
+        if self.last_update.elapsed() >= Duration::from_millis(800) {
             self.last_update = Instant::now();
             self.create_falling_object();
         }
@@ -355,6 +402,7 @@ impl GameState {
     }
 
     fn draw_playing(&mut self, ctx: &mut Context) -> GameResult<()> {
+        draw_background(ctx, &self.resources.background_image)?;
         self.player.draw(ctx)?;
         draw_button_with_text(
             ctx,
@@ -417,22 +465,10 @@ impl GameState {
         );
         draw_text(ctx, lives_text_to_draw, self.resources.fonts.lives_font)?;
 
-        Ok(())
-    }
+        if self.is_paused {
+            draw_icon(ctx, &self.pause_button)?;
+        }
 
-    fn update_paused(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        // TODO
-        Ok(())
-    }
-
-    fn draw_paused(&mut self, ctx: &mut Context) -> GameResult<()> {
-        let pause_text = DrawText::new(
-            Point2::from_slice(&[300.0, 200.0]),
-            "Paused".to_string(),
-            48.0,
-            Color::WHITE,
-        );
-        draw_text(ctx, pause_text, self.resources.fonts.level_font)?;
         Ok(())
     }
 
@@ -459,6 +495,14 @@ impl GameState {
     }
 
     fn draw_next_level(&mut self, ctx: &mut Context) -> GameResult<()> {
+        draw_background(ctx, &self.resources.background_image)?;
+        let level_complete_text = DrawText::new(
+            Point2::from_slice(&[220.0, 260.0]),
+            "Level Complete!".to_string(),
+            48.0,
+            Color::WHITE,
+        );
+        draw_text(ctx, level_complete_text, self.resources.fonts.level_font)?;
         draw_button_with_text(
             ctx,
             self.next_level_button.clone(),
@@ -487,6 +531,7 @@ impl GameState {
     }
 
     fn draw_game_over(&mut self, ctx: &mut Context) -> GameResult<()> {
+        draw_background(ctx, &self.resources.background_image)?;
         let game_over_text = DrawText::new(
             Point2::from_slice(&[300.0, 240.0]),
             "Game Over".to_string(),
@@ -523,8 +568,9 @@ impl GameState {
         Ok(())
     }
     fn draw_victory(&mut self, ctx: &mut Context) -> GameResult<()> {
+        draw_background(ctx, &self.resources.background_image)?;
         let game_complete_text = DrawText::new(
-            Point2::from_slice(&[200.0, 240.0]),
+            Point2::from_slice(&[170.0, 240.0]),
             "You Win! Game Over".to_string(),
             48.0,
             Color::WHITE,
@@ -533,7 +579,7 @@ impl GameState {
 
         let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
         let final_score_text_to_draw = DrawText::new(
-            Point2::from_slice(&[300.0, 300.0]),
+            Point2::from_slice(&[280.0, 300.0]),
             final_score_text,
             32.0,
             Color::WHITE,
@@ -557,7 +603,6 @@ impl EventHandler<GameError> for GameState {
         match self.game_mode {
             GameMode::Menu => self.update_menu(ctx),
             GameMode::Playing => self.update_playing(ctx),
-            GameMode::Paused => self.update_paused(ctx),
             GameMode::GameOver => self.update_game_over(ctx),
             GameMode::NextLevel => self.update_next_level(ctx),
             GameMode::Victory => self.update_victory(ctx),
@@ -572,7 +617,6 @@ impl EventHandler<GameError> for GameState {
         match self.game_mode {
             GameMode::Menu => self.draw_menu(ctx),
             GameMode::Playing => self.draw_playing(ctx),
-            GameMode::Paused => self.draw_paused(ctx),
             GameMode::GameOver => self.draw_game_over(ctx),
             GameMode::NextLevel => self.draw_next_level(ctx),
             GameMode::Victory => self.draw_victory(ctx),
@@ -591,18 +635,10 @@ impl EventHandler<GameError> for GameState {
         _repeat: bool,
     ) {
         match keycode {
-            KeyCode::Space => match self.game_mode {
-                GameMode::Playing => {
-                    println!("Mode changed to Paused, game mode: {:?}", self.game_mode);
-                    self.pause()
-                }
-                GameMode::Paused => {
-                    println!("Mode changed to Playing, game mode: {:?}", self.game_mode);
-                    self.resume()
-                }
-                _ => {}
+            KeyCode::Space => match self.is_paused {
+                true => self.resume(),
+                false => self.pause(),
             },
-
             KeyCode::Left => {
                 if self.player.coords.x > 0.0 {
                     self.player.move_left();

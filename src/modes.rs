@@ -3,7 +3,7 @@ pub enum GameMode {
     Menu,
     LevelSelection,
     Playing,
-    Paused,
+    // Paused,
     GameOver,
     Victory,
     NextLevel,
