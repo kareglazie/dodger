@@ -2,28 +2,31 @@ use std::time::{Duration, Instant};
 
 use ggez::{
     event::{EventHandler, KeyCode, KeyMods},
-    graphics::{clear, drawable_size, present, Color, Font, Rect},
+    graphics::{clear, drawable_size, present, Color, Rect},
     mint::{Point2, Vector2},
     Context, GameError, GameResult,
 };
 use rand::Rng;
 
-use crate::buttons::{DrawText, IconButton, TextButton};
-use crate::levels::get_levels;
-use crate::objects::FallingObject;
-use crate::player::Player;
-use crate::resources::Resources;
-use crate::sound::AudioManager;
-use crate::ui::{
-    draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer,
-    is_button_clicked,
+use crate::{
+    buttons::{DrawText, IconButton, TextButton},
+    levels::{get_levels, Level},
+    objects::FallingObject,
+    player::Player,
+    resources::Resources,
+    sound::AudioManager,
+    ui::{
+        draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer,
+        is_button_clicked,
+    },
+    utils::RectSize,
 };
-use crate::utils::{DrawableObject, RectSize};
 
 pub struct GameState {
     total_score: i32,
     level_score: i32,
-    level: usize,
+    current_level: usize,
+    levels: Vec<Level>,
     resources: Resources,
     player: Player,
     falling_objects: Vec<FallingObject>,
@@ -36,13 +39,15 @@ pub struct GameState {
     next_level_button: TextButton,
     restart_button: TextButton,
     lives: i32,
+    level_complete_sound_played: bool,
+    victory_sound_played: bool,
 }
 
 impl GameState {
     pub fn new(
         ctx: &mut Context,
         resources: Resources,
-        level: usize,
+        current_level: usize,
         audio_manager: AudioManager,
     ) -> GameResult<Self> {
         let player = Player::new(
@@ -52,7 +57,7 @@ impl GameState {
             &resources.player_image,
         );
         let restart_button = TextButton::new(
-            Point2::from_slice(&[330.0, 350.0]),
+            Point2::from_slice(&[320.0, 350.0]),
             RectSize::from((140.0, 40.0)),
             "Restart".to_string(),
             30.0,
@@ -75,11 +80,14 @@ impl GameState {
             Color::from_rgb(100, 100, 100),
         );
 
+        let levels = get_levels();
+
         let s = GameState {
             total_score: 0,
             level_score: 0,
             player,
-            level,
+            current_level,
+            levels,
             resources,
             falling_objects: Vec::new(),
             last_update: Instant::now(),
@@ -90,7 +98,9 @@ impl GameState {
             audio_button,
             next_level_button,
             restart_button,
-            lives: 5,
+            lives: 1,
+            level_complete_sound_played: false,
+            victory_sound_played: false,
         };
         Ok(s)
     }
@@ -120,16 +130,18 @@ impl GameState {
 
             if player_rect.overlaps(&obj_rect) {
                 if obj.is_good {
-                    self.audio.on_good_collision(ctx);
+                    self.audio.play_sound(ctx, "good_collision".to_string());
                     obj.remove_timer = Some(Instant::now()); // Удаляем "хороший" объект сразу
                 } else {
-                    self.audio.on_bad_collision(ctx);
+                    self.audio.play_sound(ctx, "bad_collision".to_string());
                     self.lives -= 1;
                     if self.lives <= 0 {
                         self.game_over = true;
+                        self.audio.play_sound(ctx, "game_over".to_string());
                     }
                     obj.remove_timer = Some(Instant::now()); // Запускаем таймер для удаления
-                    obj.blink_timer = Some(Instant::now()); // Запускаем таймер для мигания
+                    obj.blink_timer = Some(Instant::now()); // Запускаем таймер для мигания "плохого" объекта
+                    self.player.blink_timer = Some(Instant::now()); // Запускаем таймер для мигания игрока при столкновении с "плохим" объектом
                 }
             }
         }
@@ -137,7 +149,7 @@ impl GameState {
         // Удаляем объекты, у которых таймер истек
         self.falling_objects.retain(|obj| {
             if let Some(timer) = obj.remove_timer {
-                if (!obj.is_good && timer.elapsed() >= Duration::from_millis(500)) || obj.is_good {
+                if obj.is_good || timer.elapsed() >= Duration::from_millis(500) {
                     false // Удалить объект
                 } else {
                     true // Оставить объект
@@ -160,7 +172,10 @@ impl GameState {
         }
         self.game_over = false;
         self.level_start_time = Instant::now();
+        self.levels_completed = false;
         self.lives = 5;
+        self.level_complete_sound_played = false;
+        self.victory_sound_played = false;
     }
 
     pub fn next_level(&mut self, player: &Player) -> GameResult<()> {
@@ -197,49 +212,79 @@ impl EventHandler<GameError> for GameState {
             self.audio.is_muted = !self.audio.is_muted;
         }
 
-        if !self.game_over && !self.levels_completed {
-            if self.level_start_time.elapsed() >= Duration::from_secs(10) {
-                let levels = get_levels();
+        if !self.game_over {
+            if !self.levels_completed {
+                if self.level_start_time.elapsed() >= Duration::from_secs(10) {
+                    if !self.level_complete_sound_played
+                        && self.current_level + 1 < self.levels.len()
+                    {
+                        self.audio.play_sound(ctx, "level_completed".to_string());
+                        self.level_complete_sound_played = true;
+                    }
 
-                if self.level + 1 < levels.len() {
-                    if is_button_clicked(
-                        ctx,
-                        Rect::new(
-                            self.next_level_button.coords.x,
-                            self.next_level_button.coords.y,
-                            self.next_level_button.size.w,
-                            self.next_level_button.size.h,
-                        ),
-                    ) {
-                        self.level += 1;
-                        self.resources = Resources::load_level(ctx, self.level)?;
-                        let player = Player::new(
+                    if self.current_level + 1 < self.levels.len() {
+                        if is_button_clicked(
                             ctx,
-                            Point2::from_slice(&[400.0, 520.0]),
-                            Vector2::from_slice(&[0.2, 0.2]),
-                            &self.resources.player_image,
-                        );
-                        self.next_level(&player)?;
-                        self.reset(&player);
+                            Rect::new(
+                                self.next_level_button.coords.x,
+                                self.next_level_button.coords.y,
+                                self.next_level_button.size.w,
+                                self.next_level_button.size.h,
+                            ),
+                        ) {
+                            self.current_level += 1;
+                            self.resources = Resources::load_level(ctx, self.current_level)?;
+                            let player = Player::new(
+                                ctx,
+                                Point2::from_slice(&[400.0, 520.0]),
+                                Vector2::from_slice(&[0.2, 0.2]),
+                                &self.resources.player_image,
+                            );
+                            self.next_level(&player)?;
+                            self.reset(&player);
+                        }
+                    } else {
+                        self.levels_completed = true;
                     }
-                } else {
-                    self.levels_completed = true;
                 }
-            } else {
-                // Обычная логика игры
-                if self.last_update.elapsed() >= Duration::from_millis(1000) {
-                    self.last_update = Instant::now();
-                    self.create_falling_object();
+            } else if self.levels_completed {
+                if !self.victory_sound_played {
+                    self.audio.play_sound(ctx, "victory".to_string());
+                    self.victory_sound_played = true;
                 }
+                if is_button_clicked(
+                    ctx,
+                    Rect::new(
+                        self.restart_button.coords.x,
+                        self.restart_button.coords.y,
+                        self.restart_button.size.w,
+                        self.restart_button.size.h,
+                    ),
+                ) {
+                    self.reset(&self.player.clone());
+                }
+            }
 
-                for obj in &mut self.falling_objects {
-                    // Обновляем только объекты без активного таймера
-                    if obj.remove_timer.is_none() {
-                        obj.update(&self.resources);
-                    }
-                }
+            // Обычная логика игры
+            if !self.levels_completed && self.last_update.elapsed() >= Duration::from_millis(1000) {
+                self.last_update = Instant::now();
+                self.create_falling_object();
+            }
 
-                self.handle_collisions(ctx);
+            for obj in &mut self.falling_objects {
+                // Обновляем только объекты без активного таймера
+                if obj.remove_timer.is_none() {
+                    obj.update(&self.resources);
+                }
+            }
+
+            self.handle_collisions(ctx);
+
+            if let Some(timer) = self.player.blink_timer {
+                if timer.elapsed() >= Duration::from_secs(1) {
+                    self.player.blink_timer = None;
+                    self.player.alpha = 1.0;
+                }
             }
         } else if self.game_over
             && is_button_clicked(
@@ -263,13 +308,17 @@ impl EventHandler<GameError> for GameState {
 
         draw_background(ctx, &self.resources.background_image)?;
 
-        let text = format!("Level: {}", self.level + 1);
+        let text = format!("Level: {}", self.current_level + 1);
         let text_to_draw =
-            DrawText::new(Point2::from_slice(&[300.0, 10.0]), text, 24.0, Color::WHITE);
+            DrawText::new(Point2::from_slice(&[300.0, 10.0]), text, 32.0, Color::WHITE);
 
         draw_text(ctx, text_to_draw, self.resources.fonts.level_font)?;
 
-        draw_timer(ctx, self.get_remaining_time(), Font::default())?;
+        draw_timer(
+            ctx,
+            self.get_remaining_time(),
+            self.resources.fonts.level_font,
+        )?;
 
         self.player.draw(ctx)?;
 
@@ -284,7 +333,11 @@ impl EventHandler<GameError> for GameState {
             24.0,
             Color::WHITE,
         );
-        draw_score(ctx, level_score_text_to_draw, Font::default())?;
+        draw_score(
+            ctx,
+            level_score_text_to_draw,
+            self.resources.fonts.score_font,
+        )?;
 
         let total_score_text = format!("Total Score: {}", self.level_score + self.total_score);
         let total_score_text_to_draw = DrawText::new(
@@ -293,10 +346,14 @@ impl EventHandler<GameError> for GameState {
             24.0,
             Color::WHITE,
         );
-        draw_score(ctx, total_score_text_to_draw, Font::default())?;
+        draw_score(
+            ctx,
+            total_score_text_to_draw,
+            self.resources.fonts.score_font,
+        )?;
 
         let lives_text_to_draw = DrawText::new(
-            Point2::from_slice(&[10.0, 100.0]),
+            Point2::from_slice(&[310.0, 50.0]),
             format!("Lives: {}", self.lives),
             24.0,
             Color::WHITE,
@@ -310,9 +367,13 @@ impl EventHandler<GameError> for GameState {
             Color::WHITE,
         );
         if self.game_over {
-            draw_text(ctx, game_over_text, Font::default())?;
+            draw_text(ctx, game_over_text, self.resources.fonts.score_font)?;
 
-            draw_button_with_text(ctx, self.restart_button.clone())?;
+            draw_button_with_text(
+                ctx,
+                self.restart_button.clone(),
+                self.resources.fonts.lives_font,
+            )?;
         }
 
         if self.levels_completed {
@@ -322,16 +383,25 @@ impl EventHandler<GameError> for GameState {
                 48.0,
                 Color::WHITE,
             );
-            draw_text(ctx, game_complete_text, Font::default())?;
+            draw_text(ctx, game_complete_text, self.resources.fonts.level_font)?;
 
             let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
             let final_score_text_to_draw = DrawText::new(
-                Point2::from_slice(&[250.0, 300.0]),
+                Point2::from_slice(&[300.0, 300.0]),
                 final_score_text,
                 32.0,
                 Color::WHITE,
             );
-            draw_text(ctx, final_score_text_to_draw, Font::default())?;
+            draw_text(
+                ctx,
+                final_score_text_to_draw,
+                self.resources.fonts.lives_font,
+            )?;
+            draw_button_with_text(
+                ctx,
+                self.restart_button.clone(),
+                self.resources.fonts.lives_font,
+            )?;
         }
 
         if self.level_start_time.elapsed() >= Duration::from_secs(10)
@@ -344,9 +414,13 @@ impl EventHandler<GameError> for GameState {
                 48.0,
                 Color::WHITE,
             );
-            draw_text(ctx, level_complete_text, Font::default())?;
+            draw_text(ctx, level_complete_text, self.resources.fonts.level_font)?;
 
-            draw_button_with_text(ctx, self.next_level_button.clone())?;
+            draw_button_with_text(
+                ctx,
+                self.next_level_button.clone(),
+                self.resources.fonts.level_font,
+            )?;
         }
 
         if self.audio.is_muted {

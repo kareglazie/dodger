@@ -41,12 +41,12 @@ pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameRes
             format!("00:{}", remaining_time)
         }),
         font,
-        24.0,
+        32.0,
     ));
     draw(
         ctx,
         &timer_text,
-        (Point2 { x: 500.0, y: 10.0 }, Color::WHITE),
+        (Point2 { x: 540.0, y: 10.0 }, Color::WHITE),
     )?;
     Ok(())
 }
@@ -74,7 +74,11 @@ pub fn draw_icon(ctx: &mut Context, icon_button: &IconButton) -> GameResult<()> 
     Ok(())
 }
 
-pub fn draw_button_with_text(ctx: &mut Context, text_button: TextButton) -> GameResult<()> {
+pub fn draw_button_with_text(
+    ctx: &mut Context,
+    text_button: TextButton,
+    font: Font,
+) -> GameResult<()> {
     let button_rect = Rect::new(
         text_button.coords.x,
         text_button.coords.y,
@@ -86,7 +90,7 @@ pub fn draw_button_with_text(ctx: &mut Context, text_button: TextButton) -> Game
 
     draw(ctx, new_rect, DrawParam::default())?;
 
-    let button_text = Text::new((text_button.text, Font::default(), text_button.text_size));
+    let button_text = Text::new((text_button.text, font, text_button.text_size));
     let text_width = button_text.width(ctx);
     let text_height = button_text.height(ctx);
     let text_x = button_rect.x + (button_rect.w - text_width) / 2.0;

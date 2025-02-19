@@ -11,7 +11,7 @@ fn main() -> GameResult<()> {
         .expect("Could not create ggez context!");
 
     let audio_manager = AudioManager::new(&mut ctx);
-    let resources = Resources::load_level(&mut ctx, 0)?;
-    let state = GameState::new(&mut ctx, resources, 0, audio_manager)?;
+    let resources = Resources::load_level(&mut ctx, 2)?;
+    let state = GameState::new(&mut ctx, resources, 2, audio_manager)?;
     event::run(ctx, event_loop, state)
 }

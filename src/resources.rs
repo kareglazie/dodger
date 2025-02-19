@@ -8,15 +8,18 @@ use crate::levels::{get_levels, Level};
 pub struct Fonts {
     pub level_font: Font,
     pub lives_font: Font,
+    pub score_font: Font,
 }
 
 impl Fonts {
     pub fn new(ctx: &mut Context) -> GameResult<Self> {
         let level_font = Font::new(ctx, "/Fonts/aloevera.ttf")?;
-        let lives_font = Font::new(ctx, "/Fonts/balonku.otf")?;
+        let lives_font = Font::new(ctx, "/Fonts/sparkystones.ttf")?;
+        let score_font = Font::new(ctx, "/Fonts/supercharge.otf")?;
         Ok(Self {
             level_font,
             lives_font,
+            score_font,
         })
     }
 }

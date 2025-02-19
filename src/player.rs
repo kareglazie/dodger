@@ -1,10 +1,12 @@
+use std::time::Instant;
+
 use ggez::{
-    graphics::{drawable_size, Image},
+    graphics::{draw, drawable_size, Color, DrawParam, Image, Rect},
     mint::{Point2, Vector2},
-    Context,
+    Context, GameResult,
 };
 
-use crate::utils::{DrawableObject, RectSize};
+use crate::utils::RectSize;
 
 #[derive(Clone)]
 pub struct Player {
@@ -12,6 +14,8 @@ pub struct Player {
     pub size: RectSize,
     pub scaling: Vector2<f32>,
     pub image: Image,
+    pub blink_timer: Option<Instant>,
+    pub alpha: f32,
 }
 
 impl Player {
@@ -29,6 +33,8 @@ impl Player {
             size,
             scaling,
             image: image.clone(),
+            blink_timer: None,
+            alpha: 0.0,
         }
     }
 
@@ -41,21 +47,22 @@ impl Player {
 
         self.coords.x += 15.0_f32.min(screen_width - self.size.w);
     }
-}
 
-impl DrawableObject for Player {
-    fn coords(&self) -> Point2<f32> {
-        self.coords
+    pub fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let mut draw_params = DrawParam::default().dest(self.coords).scale(self.scaling);
+
+        if let Some(timer) = self.blink_timer {
+            let elapsed = timer.elapsed().as_secs_f32();
+            let blink_speed = 10.0; // Частота мигания при столкновении (сколько раз в секунду)
+
+            self.alpha = (elapsed * blink_speed * std::f32::consts::PI).sin().abs();
+            draw_params = draw_params.color(Color::new(1.0, 1.0, 1.0, self.alpha));
+        }
+
+        draw(ctx, &self.image, draw_params)
     }
 
-    fn image(&self) -> &Image {
-        &self.image
-    }
-
-    fn scaling(&self) -> Vector2<f32> {
-        self.scaling
-    }
-    fn size(&self) -> &RectSize {
-        &self.size
+    pub fn rect(&self) -> Rect {
+        Rect::new(self.coords.x, self.coords.y, self.size.w, self.size.h)
     }
 }
