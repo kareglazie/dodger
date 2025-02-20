@@ -16,9 +16,10 @@ use crate::{
     player::Player,
     resources::Resources,
     sound::AudioManager,
+    consts::{LIVES, LEVEL_DURATION_SECS},
     ui::{
         draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer,
-        is_button_clicked,
+        get_level_button, is_button_clicked,
     },
     utils::RectSize,
 };
@@ -46,7 +47,8 @@ pub struct GameState {
     pause_button: IconButton,
     next_level_button: TextButton,
     restart_button: TextButton,
-    lives: i32,
+    select_level_button: TextButton,
+    lives: u8,
     game_mode: GameMode,
     level_complete_sound_played: bool,
     victory_sound_played: bool,
@@ -99,7 +101,7 @@ impl GameState {
             "Next Level".to_string(),
             28.0,
             Color::WHITE,
-            Color::from_rgb(200, 200, 100),
+            Color::from_rgb(200, 200, 200),
         );
 
         let start_button = TextButton::new(
@@ -121,9 +123,18 @@ impl GameState {
         );
 
         let exit_button = TextButton::new(
-            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0 + 80.0]),
             RectSize::from((200.0, 50.0)),
             "Exit".to_string(),
+            30.0,
+            Color::from_rgb(100, 100, 100),
+            Color::WHITE,
+        );
+
+        let select_level_button = TextButton::new(
+            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0]),
+            RectSize::from((200.0, 50.0)),
+            "Select Level".to_string(),
             30.0,
             Color::from_rgb(100, 100, 100),
             Color::WHITE,
@@ -163,7 +174,8 @@ impl GameState {
             pause_button,
             next_level_button,
             restart_button,
-            lives: 5,
+            select_level_button,
+            lives: LIVES,
             game_mode: GameMode::Menu,
             level_complete_sound_played: false,
             victory_sound_played: false,
@@ -176,7 +188,7 @@ impl GameState {
 
     pub fn create_falling_object(&mut self) {
         let mut rng = rand::thread_rng();
-        let x = rng.gen_range(15.0..self.screen_width - 15.0); // Случайная горизонтальная позиция
+        let x = rng.gen_range(25.0..self.screen_width - 25.0); // Случайная горизонтальная позиция
         let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
         let good_object_value = if is_good {
             // Случайно выбираем значение для "хорошего" объекта
@@ -254,14 +266,17 @@ impl GameState {
     }
 
     fn reset(&mut self, ctx: &mut Context) -> GameResult<()> {
-        if self.game_mode == GameMode::GameOver || self.game_mode == GameMode::Victory {
+        if self.game_mode == GameMode::GameOver
+            || self.game_mode == GameMode::Victory
+            || self.game_mode == GameMode::LevelSelection
+        {
             self.total_score = 0;
         } else {
             self.total_score += self.level_score;
         }
         self.falling_objects.clear();
         self.level_score = 0;
-        self.lives = 3;
+        self.lives = LIVES;
         self.level_start_time = Instant::now();
         self.last_update = Instant::now();
         self.level_complete_sound_played = false;
@@ -304,11 +319,11 @@ impl GameState {
     fn get_remaining_time(&self) -> u64 {
         if self.is_paused {
             let elapsed = self.last_update.duration_since(self.level_start_time);
-            let remaining = Duration::from_secs(40).saturating_sub(elapsed);
+            let remaining = Duration::from_secs(LEVEL_DURATION_SECS).saturating_sub(elapsed);
             remaining.as_secs()
         } else {
             let elapsed = self.level_start_time.elapsed();
-            let remaining = Duration::from_secs(40).saturating_sub(elapsed);
+            let remaining = Duration::from_secs(LEVEL_DURATION_SECS).saturating_sub(elapsed);
             remaining.as_secs()
         }
     }
@@ -326,6 +341,18 @@ impl GameState {
             self.level_start_time = Instant::now();
             self.last_update = Instant::now();
             self.game_mode = GameMode::Playing;
+        }
+
+        if is_button_clicked(
+            ctx,
+            Rect::new(
+                self.select_level_button.coords.x,
+                self.select_level_button.coords.y,
+                self.select_level_button.size.w,
+                self.select_level_button.size.h,
+            ),
+        ) {
+            self.game_mode = GameMode::LevelSelection;
         }
 
         if is_button_clicked(
@@ -361,6 +388,11 @@ impl GameState {
         draw_button_with_text(
             ctx,
             self.exit_button.clone(),
+            self.resources.fonts.lives_font,
+        )?;
+        draw_button_with_text(
+            ctx,
+            self.select_level_button.clone(),
             self.resources.fonts.lives_font,
         )?;
         Ok(())
@@ -403,7 +435,7 @@ impl GameState {
             self.game_mode = GameMode::Menu;
         }
 
-        if self.level_start_time.elapsed() >= Duration::from_secs(40) {
+        if self.level_start_time.elapsed() >= Duration::from_secs(LEVEL_DURATION_SECS) {
             if self.current_level + 1 < self.levels.len() {
                 self.game_mode = GameMode::NextLevel;
             } else {
@@ -443,8 +475,12 @@ impl GameState {
         )?;
 
         let text = format!("Level: {}", self.current_level + 1);
-        let text_to_draw =
-            DrawText::new(Point2::from_slice(&[525.0, 10.0]), text, 32.0, Color::WHITE);
+        let text_to_draw = DrawText::new(
+            Point2::from_slice(&[525.0, 10.0]),
+            text,
+            32.0,
+            Color::from_rgb(80, 80, 80),
+        );
 
         draw_text(ctx, text_to_draw, self.resources.fonts.level_font)?;
         if self.audio.is_muted {
@@ -545,6 +581,7 @@ impl GameState {
         )?;
         Ok(())
     }
+
     fn update_game_over(&mut self, ctx: &mut Context) -> GameResult<()> {
         if !self.game_over_sound_played {
             self.audio.play_sound(ctx, "game_over".to_string());
@@ -608,8 +645,10 @@ impl GameState {
     fn draw_victory(&mut self, ctx: &mut Context) -> GameResult<()> {
         draw_background(ctx, &self.resources.background_image)?;
         let game_complete_text = DrawText::new(
-            Point2::from_slice(&[self.screen_width / 2.0 - 195.0,
-                self.screen_height / 2.0 - 125.0]),
+            Point2::from_slice(&[
+                self.screen_width / 2.0 - 195.0,
+                self.screen_height / 2.0 - 125.0,
+            ]),
             "You Win! Game Over".to_string(),
             48.0,
             Color::from_rgb(0, 255, 100),
@@ -618,8 +657,10 @@ impl GameState {
 
         let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
         let final_score_text_to_draw = DrawText::new(
-            Point2::from_slice(&[self.screen_width / 2.0 - 100.0,
-                self.screen_height / 2.0 - 75.0]),
+            Point2::from_slice(&[
+                self.screen_width / 2.0 - 100.0,
+                self.screen_height / 2.0 - 75.0,
+            ]),
             final_score_text,
             32.0,
             Color::WHITE,
@@ -636,6 +677,39 @@ impl GameState {
         )?;
         Ok(())
     }
+
+    fn update_select_level(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let levels = self.levels.clone();
+        for (i, _) in levels.iter().enumerate() {
+            let level_button = get_level_button(ctx, i);
+
+            if is_button_clicked(
+                ctx,
+                Rect::new(
+                    level_button.coords.x,
+                    level_button.coords.y,
+                    level_button.size.w,
+                    level_button.size.h,
+                ),
+            ) {
+                self.current_level = i;
+                self.reset(ctx)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_select_level(&mut self, ctx: &mut Context) -> GameResult<()> {
+        draw_background(ctx, &self.menu_background)?;
+        for (i, _) in self.levels.iter().enumerate() {
+            let level_button = get_level_button(ctx, i);
+
+            draw_button_with_text(ctx, level_button, self.resources.fonts.lives_font)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl EventHandler<GameError> for GameState {
@@ -646,7 +720,7 @@ impl EventHandler<GameError> for GameState {
             GameMode::GameOver => self.update_game_over(ctx),
             GameMode::NextLevel => self.update_next_level(ctx),
             GameMode::Victory => self.update_victory(ctx),
-            _ => Ok(()), // TODO
+            GameMode::LevelSelection => self.update_select_level(ctx),
         }
     }
 
@@ -660,7 +734,7 @@ impl EventHandler<GameError> for GameState {
             GameMode::GameOver => self.draw_game_over(ctx),
             GameMode::NextLevel => self.draw_next_level(ctx),
             GameMode::Victory => self.draw_victory(ctx),
-            _ => Ok(()), // TODO
+            GameMode::LevelSelection => self.draw_select_level(ctx),
         }?;
 
         present(ctx)?;

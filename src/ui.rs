@@ -1,4 +1,7 @@
-use crate::buttons::{DrawText, IconButton, TextButton};
+use crate::{
+    buttons::{DrawText, IconButton, TextButton},
+    utils::RectSize,
+};
 use ggez::{
     graphics::{
         draw, draw_queued_text, drawable_size, queue_text, Color, DrawMode, DrawParam, FilterMode,
@@ -46,7 +49,7 @@ pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameRes
     draw(
         ctx,
         &timer_text,
-        (Point2 { x: 290.0, y: 10.0 }, Color::WHITE),
+        (Point2 { x: 290.0, y: 10.0 }, Color::from_rgb(80, 80, 80)),
     )?;
     Ok(())
 }
@@ -118,4 +121,18 @@ pub fn is_button_clicked(ctx: &mut Context, button_rect: Rect) -> bool {
     } else {
         false
     }
+}
+
+pub fn get_level_button(ctx: &mut Context, level_index: usize) -> TextButton {
+    TextButton::new(
+        Point2::from_slice(&[
+            drawable_size(ctx).0 / 2.0 - 80.0,
+            100.0 + (level_index as f32 * 60.0),
+        ]),
+        RectSize::from((200.0, 50.0)),
+        format!("Level {}", level_index + 1),
+        30.0,
+        Color::from_rgb(100, 100, 100),
+        Color::WHITE,
+    )
 }
