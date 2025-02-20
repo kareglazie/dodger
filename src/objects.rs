@@ -3,10 +3,14 @@ use std::time::Instant;
 use ggez::{
     graphics::{draw, Color, DrawParam, Image, Rect},
     mint::{Point2, Vector2},
-    Context, GameResult,
+    Context,
 };
 
-use crate::{resources::Resources, utils::RectSize};
+use crate::{
+    errors::DrawError,
+    resources::Resources,
+    utils::{validate_coordinates, RectSize},
+};
 
 pub struct FallingObject {
     pub coords: Point2<f32>,
@@ -28,7 +32,9 @@ impl FallingObject {
         is_good: bool,
         good_object_value: Option<GoodObjectValue>,
         resources: &Resources,
-    ) -> Self {
+    ) -> Result<Self, DrawError> {
+        let validated_coords = validate_coordinates(coords)?;
+
         let image = if is_good {
             match good_object_value {
                 Some(GoodObjectValue::High) => &resources.good_object_high_image,
@@ -44,8 +50,8 @@ impl FallingObject {
         let h = image.height() as f32 * scaling.y;
         let size = RectSize::from((w, h));
 
-        FallingObject {
-            coords,
+        Ok(FallingObject {
+            coords: validated_coords,
             size,
             scaling,
             image: image.clone(),
@@ -55,7 +61,7 @@ impl FallingObject {
             blink_timer: None,
             alpha: 0.0,
             pulse_time: 0.0,
-        }
+        })
     }
 
     pub fn update(&mut self, resources: &Resources, delta_time: f32) {
@@ -70,7 +76,7 @@ impl FallingObject {
         }
     }
 
-    pub fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+    pub fn draw(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
         let mut draw_params = DrawParam::default().dest(self.coords).scale(self.scaling);
 
         if let Some(timer) = self.blink_timer {
@@ -96,7 +102,7 @@ impl FallingObject {
             }
         }
 
-        draw(ctx, &self.image, draw_params)
+        draw(ctx, &self.image, draw_params).map_err(|err| DrawError::DrawObject(err.to_string()))
     }
 
     pub fn rect(&self) -> Rect {

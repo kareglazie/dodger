@@ -1,12 +1,16 @@
 use std::time::Instant;
 
 use ggez::{
-    graphics::{draw, drawable_size, Color, DrawParam, Image, Rect},
+    graphics::{draw, Color, DrawParam, Image, Rect},
     mint::{Point2, Vector2},
-    Context, GameResult,
+    Context,
 };
 
-use crate::utils::RectSize;
+use crate::{
+    consts::WINDOW_WIDTH,
+    errors::DrawError,
+    utils::{validate_coordinates, RectSize},
+};
 
 #[derive(Clone)]
 pub struct Player {
@@ -24,31 +28,31 @@ impl Player {
         coords: Point2<f32>,
         scaling: Vector2<f32>,
         image: &Image,
-    ) -> Self {
+    ) -> Result<Self, DrawError> {
+        let validated_coords = validate_coordinates(coords)?;
         let w = image.width() as f32 * scaling.x;
         let h = image.width() as f32 * scaling.x;
         let size = RectSize::from((w, h));
-        Player {
-            coords,
+
+        Ok(Player {
+            coords: validated_coords,
             size,
             scaling,
             image: image.clone(),
             blink_timer: None,
             alpha: 0.0,
-        }
+        })
     }
 
     pub fn move_left(&mut self) {
         self.coords.x -= 20.0_f32.max(0.0);
     }
 
-    pub fn move_right(&mut self, ctx: &mut Context) {
-        let (screen_width, _) = drawable_size(ctx);
-
-        self.coords.x += 20.0_f32.min(screen_width - self.size.w);
+    pub fn move_right(&mut self) {
+        self.coords.x += 20.0_f32.min(WINDOW_WIDTH - self.size.w);
     }
 
-    pub fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+    pub fn draw(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
         let mut draw_params = DrawParam::default().dest(self.coords).scale(self.scaling);
 
         if let Some(timer) = self.blink_timer {
@@ -59,7 +63,7 @@ impl Player {
             draw_params = draw_params.color(Color::new(1.0, 1.0, 1.0, self.alpha));
         }
 
-        draw(ctx, &self.image, draw_params)
+        draw(ctx, &self.image, draw_params).map_err(|err| DrawError::DrawPlayer(err.to_string()))
     }
 
     pub fn rect(&self) -> Rect {

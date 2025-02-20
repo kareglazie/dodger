@@ -5,6 +5,8 @@ use ggez::{
 };
 use std::collections::HashMap;
 
+use crate::errors::ResourceError;
+
 pub struct AudioManager {
     pub speaker_icon: Image,
     pub speaker_muted_icon: Image,
@@ -13,9 +15,13 @@ pub struct AudioManager {
 }
 
 impl AudioManager {
-    pub fn new(ctx: &mut Context) -> Self {
-        let speaker_icon = Image::new(ctx, "/Sounds/speaker.png").unwrap();
-        let speaker_muted_icon = Image::new(ctx, "/Sounds/speaker_muted.png").unwrap();
+    pub fn new(ctx: &mut Context) -> Result<Self, ResourceError> {
+        let speaker_icon_path = "/Sounds/speaker.png";
+        let speaker_icon_muted_path = "/Sounds/speaker_muted.png";
+        let speaker_icon = Image::new(ctx, speaker_icon_path)
+            .map_err(|_| ResourceError::InvalidImagePath(speaker_icon_path.to_string()))?;
+        let speaker_muted_icon = Image::new(ctx, speaker_icon_muted_path)
+            .map_err(|_| ResourceError::InvalidImagePath(speaker_icon_muted_path.to_string()))?;
         let mut sounds = HashMap::new();
         sounds.insert(
             "good_collision".to_string(),
@@ -39,23 +45,27 @@ impl AudioManager {
         );
         sounds.insert("victory".to_string(), "/Sounds/fanfare.ogg".to_string());
 
-        AudioManager {
+        Ok(AudioManager {
             speaker_icon,
             speaker_muted_icon,
             is_muted: false,
             sounds,
-        }
+        })
     }
 
-    pub fn play_sound(&self, ctx: &mut Context, sound_key: String) {
+    pub fn play_sound(&self, ctx: &mut Context, sound_key: String) -> Result<(), ResourceError> {
         if self.is_muted {
-            return;
+            return Ok(());
         }
         if let Some(sound) = self.sounds.get(&sound_key) {
-            let mut sound = Source::new(ctx, sound).unwrap();
-            sound.play_detached(ctx).unwrap();
+            let mut sound_source = Source::new(ctx, sound)
+                .map_err(|_| ResourceError::InvalidSoundPath(sound.to_string()))?;
+            sound_source
+                .play_detached(ctx)
+                .map_err(|err| ResourceError::AudioError(err.to_string()))?;
+            Ok(())
         } else {
-            println!("Wrong file path: {:?}", sound_key);
+            Err(ResourceError::InvalidSoundKey(sound_key))
         }
     }
 

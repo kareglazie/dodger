@@ -1,21 +1,22 @@
 use crate::{
     buttons::{DrawText, IconButton, TextButton},
-    utils::RectSize,
+    consts::{WINDOW_HEIGHT, WINDOW_WIDTH},
+    errors::DrawError,
+    utils::{validate_coordinates, RectSize},
 };
 use ggez::{
     graphics::{
-        draw, draw_queued_text, drawable_size, queue_text, Color, DrawMode, DrawParam, FilterMode,
-        Font, Image, Mesh, Rect, Text,
+        draw, draw_queued_text, queue_text, Color, DrawMode, DrawParam, FilterMode, Font, Image,
+        Mesh, Rect, Text,
     },
     input::mouse::{button_pressed, position, MouseButton},
     mint::{Point2, Vector2},
-    Context, GameResult,
+    Context,
 };
 
-pub fn draw_background(ctx: &mut Context, image: &Image) -> GameResult<()> {
-    let screen_size = drawable_size(ctx);
-    let scale_x = screen_size.0 / image.width() as f32;
-    let scale_y = screen_size.1 / image.height() as f32;
+pub fn draw_background(ctx: &mut Context, image: &Image) -> Result<(), DrawError> {
+    let scale_x = WINDOW_WIDTH / image.width() as f32;
+    let scale_y = WINDOW_HEIGHT / image.height() as f32;
 
     draw(
         ctx,
@@ -26,17 +27,18 @@ pub fn draw_background(ctx: &mut Context, image: &Image) -> GameResult<()> {
                 x: scale_x,
                 y: scale_y,
             }),
-    )?;
-    Ok(())
+    )
+    .map_err(|err| DrawError::DrawBackground(err.to_string()))
 }
 
-pub fn draw_text(ctx: &mut Context, text_params: DrawText, font: Font) -> GameResult<()> {
-    let text = Text::new((text_params.text, font, text_params.size));
-    draw(ctx, &text, (text_params.coords, text_params.color))?;
-    Ok(())
+pub fn draw_text(ctx: &mut Context, text_params: DrawText, font: Font) -> Result<(), DrawError> {
+    let validated_coords = validate_coordinates(text_params.coords)?;
+    let text = Text::new((text_params.text.clone(), font, text_params.size));
+    draw(ctx, &text, (validated_coords, text_params.color))
+        .map_err(|err| DrawError::DrawText(text_params.text, err.to_string()))
 }
 
-pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameResult<()> {
+pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> Result<(), DrawError> {
     let timer_text = Text::new((
         (if remaining_time < 10 {
             format!("00:0{}", remaining_time)
@@ -46,72 +48,67 @@ pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameRes
         font,
         32.0,
     ));
-    draw(
-        ctx,
-        &timer_text,
-        (Point2 { x: 290.0, y: 10.0 }, Color::from_rgb(80, 80, 80)),
-    )?;
-    Ok(())
+    let coords = validate_coordinates(Point2 { x: 290.0, y: 10.0 })?;
+    draw(ctx, &timer_text, (coords, Color::from_rgb(80, 80, 80)))
+        .map_err(|err| DrawError::DrawTimer(err.to_string()))
 }
 
-pub fn draw_score(ctx: &mut Context, text_to_draw: DrawText, font: Font) -> GameResult<()> {
+pub fn draw_score(ctx: &mut Context, text_to_draw: DrawText, font: Font) -> Result<(), DrawError> {
+    let coords = validate_coordinates(text_to_draw.coords)?;
+    let score = text_to_draw.text.clone();
     let level_score_display = Text::new((text_to_draw.text, font, text_to_draw.size));
     queue_text(
         ctx,
         &level_score_display,
-        [text_to_draw.coords.x, text_to_draw.coords.y],
+        [coords.x, coords.y],
         Some(text_to_draw.color),
     );
 
-    draw_queued_text(ctx, DrawParam::default(), None, FilterMode::Linear)?;
-    Ok(())
+    draw_queued_text(ctx, DrawParam::default(), None, FilterMode::Linear)
+        .map_err(|err| DrawError::DrawScore(score, err.to_string()))
 }
 
-pub fn draw_icon(ctx: &mut Context, icon_button: &IconButton) -> GameResult<()> {
-    let draw_params = DrawParam::default()
-        .dest(icon_button.coords)
-        .scale(icon_button.scaling);
+pub fn draw_icon(ctx: &mut Context, icon_button: &IconButton) -> Result<(), DrawError> {
+    let coords = validate_coordinates(icon_button.coords)?;
+    let draw_params = DrawParam::default().dest(coords).scale(icon_button.scaling);
 
-    draw(ctx, &icon_button.icon, draw_params)?;
-
-    Ok(())
+    draw(ctx, &icon_button.icon, draw_params)
+        .map_err(|err| DrawError::DrawIconButton(err.to_string()))
 }
 
 pub fn draw_button_with_text(
     ctx: &mut Context,
     text_button: TextButton,
     font: Font,
-) -> GameResult<()> {
+) -> Result<(), DrawError> {
+    let button_coords = validate_coordinates(text_button.coords)?;
     let button_rect = Rect::new(
-        text_button.coords.x,
-        text_button.coords.y,
+        button_coords.x,
+        button_coords.y,
         text_button.size.w,
         text_button.size.h,
     );
     let new_rect =
-        &Mesh::new_rectangle(ctx, DrawMode::fill(), button_rect, text_button.button_color)?;
+        &Mesh::new_rectangle(ctx, DrawMode::fill(), button_rect, text_button.button_color)
+            .map_err(|err| DrawError::BuildRect(err.to_string()))?;
 
-    draw(ctx, new_rect, DrawParam::default())?;
+    draw(ctx, new_rect, DrawParam::default())
+        .map_err(|err| DrawError::DrawRect(err.to_string()))?;
 
     let button_text = Text::new((text_button.text, font, text_button.text_size));
     let text_width = button_text.width(ctx);
     let text_height = button_text.height(ctx);
+
     let text_x = button_rect.x + (button_rect.w - text_width) / 2.0;
     let text_y = button_rect.y + (button_rect.h - text_height) / 2.0;
 
-    draw(
-        ctx,
-        &button_text,
-        (
-            ggez::mint::Point2 {
-                x: text_x,
-                y: text_y,
-            },
-            text_button.text_color,
-        ),
-    )?;
+    let text_coords = validate_coordinates(Point2 {
+        x: text_x,
+        y: text_y,
+    })?;
 
-    Ok(())
+    draw(ctx, &button_text, (text_coords, text_button.text_color))
+        .map_err(|err| DrawError::DrawTextButton(err.to_string()))
 }
 
 pub fn is_button_clicked(ctx: &mut Context, button_rect: Rect) -> bool {
@@ -123,10 +120,10 @@ pub fn is_button_clicked(ctx: &mut Context, button_rect: Rect) -> bool {
     }
 }
 
-pub fn get_level_button(ctx: &mut Context, level_index: usize) -> TextButton {
+pub fn get_level_button(level_index: usize) -> Result<TextButton, DrawError> {
     TextButton::new(
         Point2::from_slice(&[
-            drawable_size(ctx).0 / 2.0 - 80.0,
+            WINDOW_WIDTH / 2.0 - 80.0,
             100.0 + (level_index as f32 * 60.0),
         ]),
         RectSize::from((200.0, 50.0)),

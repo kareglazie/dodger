@@ -1,3 +1,4 @@
+use dodger::consts::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use dodger::gamestate::GameState;
 use dodger::levels::get_levels;
 use dodger::resources::Resources;
@@ -8,8 +9,8 @@ use ggez::{ContextBuilder, GameResult};
 
 fn main() -> GameResult<()> {
     let window_mode = WindowMode {
-        width: 1000.0,
-        height: 800.0,
+        width: WINDOW_WIDTH,
+        height: WINDOW_HEIGHT,
         resizable: false,
         ..WindowMode::default()
     };
@@ -20,7 +21,7 @@ fn main() -> GameResult<()> {
         .build()
         .expect("Could not create ggez context!");
 
-    let audio_manager = AudioManager::new(&mut ctx);
+    let audio_manager = AudioManager::new(&mut ctx)?;
     let levels = get_levels();
     let resources = Resources::load_level(&mut ctx, 0, &levels)?;
     let state = GameState::new(&mut ctx, resources, 0, audio_manager)?;
