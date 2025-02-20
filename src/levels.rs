@@ -8,19 +8,19 @@ pub fn get_levels() -> Vec<Level> {
     vec![
         Level {
             image_template: "/Level1",
-            fall_speed: 1.0,
+            fall_speed: 2.5,
         },
         Level {
             image_template: "/Level2",
-            fall_speed: 1.5,
+            fall_speed: 3.0,
         },
         Level {
             image_template: "/Level3",
-            fall_speed: 2.0,
+            fall_speed: 3.5,
         },
         Level {
             image_template: "/Level4",
-            fall_speed: 2.5,
+            fall_speed: 4.0,
         },
     ]
 }

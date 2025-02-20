@@ -12,7 +12,7 @@ use crate::{
     buttons::{DrawText, IconButton, TextButton},
     levels::{get_levels, Level},
     modes::GameMode,
-    objects::FallingObject,
+    objects::{FallingObject, GoodObjectValue},
     player::Player,
     resources::Resources,
     sound::AudioManager,
@@ -24,6 +24,8 @@ use crate::{
 };
 
 pub struct GameState {
+    screen_width: f32,
+    screen_height: f32,
     total_score: i32,
     level_score: i32,
     current_level: usize,
@@ -60,14 +62,16 @@ impl GameState {
         current_level: usize,
         audio_manager: AudioManager,
     ) -> GameResult<Self> {
+        let (screen_width, screen_height) = drawable_size(ctx);
+
         let player = Player::new(
             ctx,
-            Point2::from_slice(&[400.0, 460.0]),
-            Vector2::from_slice(&[0.25, 0.25]),
+            Point2::from_slice(&[screen_width / 2.0, screen_height - 175.0]),
+            Vector2::from_slice(&[0.35, 0.35]),
             &resources.player_image,
         );
         let restart_button = TextButton::new(
-            Point2::from_slice(&[320.0, 350.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 65.0, screen_height / 2.0 - 30.0]),
             RectSize::from((140.0, 40.0)),
             "Restart".to_string(),
             30.0,
@@ -76,21 +80,21 @@ impl GameState {
         );
 
         let audio_button = IconButton::new(
-            Point2::from_slice(&[drawable_size(ctx).0 - 50.0, 60.0]),
-            Vector2::from_slice(&[0.06, 0.06]),
+            Point2::from_slice(&[screen_width - 50.0, 60.0]),
+            Vector2::from_slice(&[0.08, 0.08]),
             audio_manager.speaker_icon,
         );
 
         let pause_button = IconButton::new(
-            Point2::from_slice(&[365.0, 255.0]),
-            Vector2::from_slice(&[0.2, 0.2]),
+            Point2::from_slice(&[screen_width / 2.0 - 40.0, screen_height / 2.0 - 30.0]),
+            Vector2::from_slice(&[0.5, 0.5]),
             Image::new(ctx, "/pause_resume.png").unwrap(),
         );
 
         let menu_background = Image::new(ctx, "/menu_background.png").unwrap();
 
         let next_level_button = TextButton::new(
-            Point2::from_slice(&[315.0, 350.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 65.0, screen_height / 2.0 - 30.0]),
             RectSize::from((150.0, 60.0)),
             "Next Level".to_string(),
             28.0,
@@ -99,7 +103,7 @@ impl GameState {
         );
 
         let start_button = TextButton::new(
-            Point2::from_slice(&[300.0, 200.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0 - 80.0]),
             RectSize::from((200.0, 50.0)),
             "Start".to_string(),
             30.0,
@@ -108,7 +112,7 @@ impl GameState {
         );
 
         let resume_button = TextButton::new(
-            Point2::from_slice(&[300.0, 200.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0 - 80.0]),
             RectSize::from((200.0, 50.0)),
             "Resume".to_string(),
             30.0,
@@ -117,7 +121,7 @@ impl GameState {
         );
 
         let exit_button = TextButton::new(
-            Point2::from_slice(&[300.0, 300.0]),
+            Point2::from_slice(&[screen_width / 2.0 - 80.0, screen_height / 2.0]),
             RectSize::from((200.0, 50.0)),
             "Exit".to_string(),
             30.0,
@@ -126,7 +130,7 @@ impl GameState {
         );
 
         let menu_button = TextButton::new(
-            Point2::from_slice(&[drawable_size(ctx).0 - 100.0, 10.0]),
+            Point2::from_slice(&[screen_width - 100.0, 10.0]),
             RectSize::from((100.0, 40.0)),
             "Menu".to_string(),
             24.0,
@@ -137,6 +141,8 @@ impl GameState {
         let levels = get_levels();
 
         let s = GameState {
+            screen_width,
+            screen_height,
             total_score: 0,
             level_score: 0,
             player,
@@ -157,7 +163,7 @@ impl GameState {
             pause_button,
             next_level_button,
             restart_button,
-            lives: 3,
+            lives: 5,
             game_mode: GameMode::Menu,
             level_complete_sound_played: false,
             victory_sound_played: false,
@@ -168,14 +174,26 @@ impl GameState {
         Ok(s)
     }
 
-    fn create_falling_object(&mut self) {
+    pub fn create_falling_object(&mut self) {
         let mut rng = rand::thread_rng();
-        let x = rng.gen_range(0.0..780.0); // Случайная горизонтальная позиция
+        let x = rng.gen_range(15.0..self.screen_width - 15.0); // Случайная горизонтальная позиция
         let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
+        let good_object_value = if is_good {
+            // Случайно выбираем значение для "хорошего" объекта
+            match rng.gen_range(0..10) {
+                0 => Some(GoodObjectValue::High),
+                1 | 3 | 5 => Some(GoodObjectValue::Medium),
+                _ => Some(GoodObjectValue::Low),
+            }
+        } else {
+            None
+        };
+
         let object = FallingObject::new(
             Point2::from_slice(&[x, 0.0]),
-            Vector2::from_slice(&[0.06, 0.06]),
+            Vector2::from_slice(&[0.08, 0.08]),
             is_good,
+            good_object_value,
             &self.resources,
         );
         self.falling_objects.push(object);
@@ -193,8 +211,21 @@ impl GameState {
 
             if player_rect.overlaps(&obj_rect) {
                 if obj.is_good {
-                    self.audio.play_sound(ctx, "good_collision".to_string());
-                    self.level_score += 10;
+                    match &obj.good_object_value {
+                        Some(value) => {
+                            self.level_score += value.score();
+                            match value {
+                                GoodObjectValue::High => self
+                                    .audio
+                                    .play_sound(ctx, "good_collision_high".to_string()),
+                                _ => self.audio.play_sound(ctx, "good_collision".to_string()),
+                            }
+                        }
+                        None => {
+                            self.level_score += 10;
+                            self.audio.play_sound(ctx, "good_collision".to_string())
+                        }
+                    }
                     obj.remove_timer = Some(Instant::now()); // Удаляем "хороший" объект сразу
                 } else {
                     self.audio.play_sound(ctx, "bad_collision".to_string());
@@ -208,11 +239,10 @@ impl GameState {
                 }
             }
         }
-
         // Удаляем объекты, у которых таймер истек
         self.falling_objects.retain(|obj| {
             if let Some(timer) = obj.remove_timer {
-                if obj.is_good || timer.elapsed() >= Duration::from_millis(500) {
+                if obj.is_good || timer.elapsed() >= Duration::from_secs(1) {
                     false // Удалить объект
                 } else {
                     true // Оставить объект
@@ -242,8 +272,8 @@ impl GameState {
 
         self.player = Player::new(
             ctx,
-            Point2::from_slice(&[400.0, 460.0]),
-            Vector2::from_slice(&[0.25, 0.25]),
+            Point2::from_slice(&[self.screen_width / 2.0, self.screen_height - 175.0]),
+            Vector2::from_slice(&[0.4, 0.4]),
             &self.resources.player_image,
         );
 
@@ -274,11 +304,11 @@ impl GameState {
     fn get_remaining_time(&self) -> u64 {
         if self.is_paused {
             let elapsed = self.last_update.duration_since(self.level_start_time);
-            let remaining = Duration::from_secs(10).saturating_sub(elapsed);
+            let remaining = Duration::from_secs(40).saturating_sub(elapsed);
             remaining.as_secs()
         } else {
             let elapsed = self.level_start_time.elapsed();
-            let remaining = Duration::from_secs(10).saturating_sub(elapsed);
+            let remaining = Duration::from_secs(40).saturating_sub(elapsed);
             remaining.as_secs()
         }
     }
@@ -293,6 +323,8 @@ impl GameState {
                 self.start_button.size.h,
             ),
         ) {
+            self.level_start_time = Instant::now();
+            self.last_update = Instant::now();
             self.game_mode = GameMode::Playing;
         }
 
@@ -371,7 +403,7 @@ impl GameState {
             self.game_mode = GameMode::Menu;
         }
 
-        if self.level_start_time.elapsed() >= Duration::from_secs(10) {
+        if self.level_start_time.elapsed() >= Duration::from_secs(40) {
             if self.current_level + 1 < self.levels.len() {
                 self.game_mode = GameMode::NextLevel;
             } else {
@@ -386,7 +418,7 @@ impl GameState {
 
         for obj in &mut self.falling_objects {
             if obj.remove_timer.is_none() {
-                obj.update(&self.resources);
+                obj.update(&self.resources, 0.1);
             }
         }
 
@@ -412,7 +444,7 @@ impl GameState {
 
         let text = format!("Level: {}", self.current_level + 1);
         let text_to_draw =
-            DrawText::new(Point2::from_slice(&[300.0, 10.0]), text, 32.0, Color::WHITE);
+            DrawText::new(Point2::from_slice(&[525.0, 10.0]), text, 32.0, Color::WHITE);
 
         draw_text(ctx, text_to_draw, self.resources.fonts.level_font)?;
         if self.audio.is_muted {
@@ -429,7 +461,7 @@ impl GameState {
         let level_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 10.0]),
             level_score_text,
-            24.0,
+            30.0,
             Color::WHITE,
         );
         draw_score(
@@ -448,7 +480,7 @@ impl GameState {
         let total_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 50.0]),
             total_score_text,
-            24.0,
+            30.0,
             Color::WHITE,
         );
         draw_score(
@@ -458,9 +490,9 @@ impl GameState {
         )?;
 
         let lives_text_to_draw = DrawText::new(
-            Point2::from_slice(&[310.0, 50.0]),
+            Point2::from_slice(&[530.0, 60.0]),
             format!("Lives: {}", self.lives),
-            24.0,
+            32.0,
             Color::WHITE,
         );
         draw_text(ctx, lives_text_to_draw, self.resources.fonts.lives_font)?;
@@ -497,7 +529,10 @@ impl GameState {
     fn draw_next_level(&mut self, ctx: &mut Context) -> GameResult<()> {
         draw_background(ctx, &self.resources.background_image)?;
         let level_complete_text = DrawText::new(
-            Point2::from_slice(&[220.0, 260.0]),
+            Point2::from_slice(&[
+                self.screen_width / 2.0 - 160.0,
+                self.screen_height / 2.0 - 100.0,
+            ]),
             "Level Complete!".to_string(),
             48.0,
             Color::WHITE,
@@ -533,7 +568,10 @@ impl GameState {
     fn draw_game_over(&mut self, ctx: &mut Context) -> GameResult<()> {
         draw_background(ctx, &self.resources.background_image)?;
         let game_over_text = DrawText::new(
-            Point2::from_slice(&[300.0, 240.0]),
+            Point2::from_slice(&[
+                self.screen_width / 2.0 - 90.0,
+                self.screen_height / 2.0 - 75.0,
+            ]),
             "Game Over".to_string(),
             48.0,
             Color::WHITE,
@@ -570,16 +608,18 @@ impl GameState {
     fn draw_victory(&mut self, ctx: &mut Context) -> GameResult<()> {
         draw_background(ctx, &self.resources.background_image)?;
         let game_complete_text = DrawText::new(
-            Point2::from_slice(&[170.0, 240.0]),
+            Point2::from_slice(&[self.screen_width / 2.0 - 195.0,
+                self.screen_height / 2.0 - 125.0]),
             "You Win! Game Over".to_string(),
             48.0,
-            Color::WHITE,
+            Color::from_rgb(0, 255, 100),
         );
         draw_text(ctx, game_complete_text, self.resources.fonts.level_font)?;
 
         let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
         let final_score_text_to_draw = DrawText::new(
-            Point2::from_slice(&[280.0, 300.0]),
+            Point2::from_slice(&[self.screen_width / 2.0 - 100.0,
+                self.screen_height / 2.0 - 75.0]),
             final_score_text,
             32.0,
             Color::WHITE,
@@ -645,8 +685,7 @@ impl EventHandler<GameError> for GameState {
                 }
             }
             KeyCode::Right => {
-                let screen_width = drawable_size(ctx).0;
-                if self.player.coords.x < screen_width - self.player.size.w {
+                if self.player.coords.x < self.screen_width - self.player.size.w {
                     self.player.move_right(ctx);
                 }
             }

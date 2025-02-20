@@ -46,7 +46,7 @@ pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> GameRes
     draw(
         ctx,
         &timer_text,
-        (Point2 { x: 540.0, y: 10.0 }, Color::WHITE),
+        (Point2 { x: 290.0, y: 10.0 }, Color::WHITE),
     )?;
     Ok(())
 }

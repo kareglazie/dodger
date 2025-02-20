@@ -22,6 +22,10 @@ impl AudioManager {
             "/Sounds/success.ogg".to_string(),
         );
         sounds.insert(
+            "good_collision_high".to_string(),
+            "/Sounds/treasure.ogg".to_string(),
+        );
+        sounds.insert(
             "bad_collision".to_string(),
             "/Sounds/failure-alert.ogg".to_string(),
         );
@@ -47,9 +51,12 @@ impl AudioManager {
         if self.is_muted {
             return;
         }
-        let file_path = self.sounds.get(&sound_key).unwrap();
-        let mut sound = Source::new(ctx, file_path).unwrap();
-        sound.play_detached(ctx).unwrap();
+        if let Some(sound) = self.sounds.get(&sound_key) {
+            let mut sound = Source::new(ctx, sound).unwrap();
+            sound.play_detached(ctx).unwrap();
+        } else {
+            println!("Wrong file path: {:?}", sound_key);
+        }
     }
 
     pub fn toggle_mute(&mut self) {

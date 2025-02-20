@@ -39,13 +39,13 @@ impl Player {
     }
 
     pub fn move_left(&mut self) {
-        self.coords.x -= 15.0_f32.max(0.0);
+        self.coords.x -= 20.0_f32.max(0.0);
     }
 
     pub fn move_right(&mut self, ctx: &mut Context) {
         let (screen_width, _) = drawable_size(ctx);
 
-        self.coords.x += 15.0_f32.min(screen_width - self.size.w);
+        self.coords.x += 20.0_f32.min(screen_width - self.size.w);
     }
 
     pub fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {

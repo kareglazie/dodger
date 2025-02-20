@@ -2,12 +2,21 @@ use dodger::gamestate::GameState;
 use dodger::levels::get_levels;
 use dodger::resources::Resources;
 use dodger::sound::AudioManager;
+use ggez::conf::{WindowMode, WindowSetup};
 use ggez::event;
 use ggez::{ContextBuilder, GameResult};
 
 fn main() -> GameResult<()> {
-    let (mut ctx, event_loop) = ContextBuilder::new("dodger", "author")
+    let window_mode = WindowMode {
+        width: 1000.0,
+        height: 800.0,
+        resizable: false,
+        ..WindowMode::default()
+    };
+    let (mut ctx, event_loop) = ContextBuilder::new("dodger", "me")
         .add_resource_path("./resources")
+        .window_setup(WindowSetup::default().title("My Awesome Game"))
+        .window_mode(window_mode)
         .build()
         .expect("Could not create ggez context!");
 
