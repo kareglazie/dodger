@@ -23,8 +23,8 @@ fn main() -> GameResult<()> {
 
     let audio_manager = AudioManager::new(&mut ctx)?;
     let levels = get_levels();
-    let resources = Resources::load_level(&mut ctx, 0, &levels)?;
-    let state = GameState::new(&mut ctx, resources, 0, audio_manager)?;
+    let resources = Resources::load_level(&mut ctx, 3, &levels)?;
+    let state = GameState::new(&mut ctx, resources, 3, audio_manager)?;
 
     event::run(ctx, event_loop, state)
 }

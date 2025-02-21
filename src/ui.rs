@@ -2,7 +2,7 @@ use crate::{
     buttons::{DrawText, IconButton, TextButton},
     consts::{WINDOW_HEIGHT, WINDOW_WIDTH},
     errors::DrawError,
-    utils::{validate_coordinates, RectSize},
+    utils::{text_button_rectsize, validate_coordinates},
 };
 use ggez::{
     graphics::{
@@ -126,7 +126,7 @@ pub fn get_level_button(level_index: usize) -> Result<TextButton, DrawError> {
             WINDOW_WIDTH / 2.0 - 80.0,
             100.0 + (level_index as f32 * 60.0),
         ]),
-        RectSize::from((200.0, 50.0)),
+        text_button_rectsize(),
         format!("Level {}", level_index + 1),
         30.0,
         Color::from_rgb(100, 100, 100),
