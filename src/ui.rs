@@ -2,14 +2,13 @@ use crate::{
     buttons::{DrawText, IconButton, TextButton},
     consts::{WINDOW_HEIGHT, WINDOW_WIDTH},
     errors::DrawError,
-    utils::{validate_coordinates, RectSize},
+    utils::validate_coordinates,
 };
 use ggez::{
     graphics::{
         draw, draw_queued_text, queue_text, Color, DrawMode, DrawParam, FilterMode, Font, Image,
         Mesh, Rect, Text,
     },
-    input::mouse::{button_pressed, position, MouseButton},
     mint::{Point2, Vector2},
     Context,
 };
@@ -109,27 +108,4 @@ pub fn draw_button_with_text(
 
     draw(ctx, &button_text, (text_coords, text_button.text_color))
         .map_err(|err| DrawError::DrawTextButton(err.to_string()))
-}
-
-pub fn is_button_clicked(ctx: &mut Context, button_rect: Rect) -> bool {
-    if button_pressed(ctx, MouseButton::Left) {
-        let pos = position(ctx);
-        button_rect.contains(pos)
-    } else {
-        false
-    }
-}
-
-pub fn get_level_button(level_index: usize) -> Result<TextButton, DrawError> {
-    TextButton::new(
-        Point2::from_slice(&[
-            WINDOW_WIDTH / 2.0 - 80.0,
-            100.0 + (level_index as f32 * 60.0),
-        ]),
-        RectSize::from((200.0, 50.0)),
-        format!("Level {}", level_index + 1),
-        30.0,
-        Color::from_rgb(100, 100, 100),
-        Color::WHITE,
-    )
 }

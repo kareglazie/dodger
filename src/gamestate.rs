@@ -2,15 +2,19 @@ use std::time::{Duration, Instant};
 
 use ggez::{
     event::{quit, EventHandler, KeyCode, KeyMods},
-    graphics::{clear, present, Color, Image, Rect},
-    mint::{Point2, Vector2},
+    graphics::{clear, present, Color},
+    mint::Point2,
     Context, GameError, GameResult,
 };
+
 use rand::Rng;
 
 use crate::{
     buttons::{DrawText, IconButton, TextButton},
-    consts::{LEVEL_DURATION_SECS, LIVES, WINDOW_HEIGHT, WINDOW_WIDTH},
+    consts::{
+        BUTTON_TEXT_SIZE, FALLING_OBJECT_UPDATE_MILLIS, LEVEL_DURATION_SECS, LIVES, WINDOW_HEIGHT,
+        WINDOW_WIDTH,
+    },
     errors::DrawError,
     levels::{get_levels, Level},
     modes::GameMode,
@@ -18,11 +22,12 @@ use crate::{
     player::Player,
     resources::Resources,
     sound::AudioManager,
-    ui::{
-        draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer,
-        get_level_button, is_button_clicked,
+    ui::{draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer},
+    utils::{
+        get_level_button, half_scaling, icon_button_rect, is_button_clicked, object_scaling,
+        player_scaling, start_point_of_button_in_set, start_point_of_centered_button,
+        text_button_rect, text_button_rectsize, RectSize,
     },
-    utils::RectSize,
 };
 
 pub struct GameState {
@@ -65,72 +70,72 @@ impl GameState {
         let player = Player::new(
             ctx,
             Point2::from_slice(&[WINDOW_WIDTH / 2.0, WINDOW_HEIGHT - 175.0]),
-            Vector2::from_slice(&[0.35, 0.35]),
+            player_scaling(),
             &resources.player_image,
         )?;
         let restart_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 65.0, WINDOW_HEIGHT / 2.0 - 30.0]),
-            RectSize::from((140.0, 40.0)),
+            start_point_of_centered_button(),
+            text_button_rectsize(),
             "Restart".to_string(),
-            30.0,
-            Color::from_rgb(100, 100, 100),
+            BUTTON_TEXT_SIZE,
+            Color::BLACK,
             Color::WHITE,
         )?;
 
         let audio_button = IconButton::new(
             Point2::from_slice(&[WINDOW_WIDTH - 50.0, 60.0]),
-            Vector2::from_slice(&[0.08, 0.08]),
+            object_scaling(),
             audio_manager.speaker_icon,
         )?;
 
         let pause_button = IconButton::new(
             Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 40.0, WINDOW_HEIGHT / 2.0 - 30.0]),
-            Vector2::from_slice(&[0.5, 0.5]),
-            Image::new(ctx, "/pause_resume.png").unwrap(),
+            half_scaling(),
+            resources.pause_button_image.clone(),
         )?;
 
         let next_level_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 65.0, WINDOW_HEIGHT / 2.0 - 30.0]),
-            RectSize::from((150.0, 60.0)),
+            start_point_of_centered_button(),
+            text_button_rectsize(),
             "Next Level".to_string(),
-            28.0,
+            BUTTON_TEXT_SIZE,
             Color::WHITE,
-            Color::from_rgb(200, 200, 200),
+            Color::BLACK,
         )?;
 
         let start_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 80.0, WINDOW_HEIGHT / 2.0 - 80.0]),
-            RectSize::from((200.0, 50.0)),
+            start_point_of_button_in_set(0, 300.0),
+            text_button_rectsize(),
             "Start".to_string(),
-            30.0,
-            Color::from_rgb(100, 100, 100),
+            BUTTON_TEXT_SIZE,
+            Color::BLACK,
             Color::WHITE,
         )?;
 
         let resume_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 80.0, WINDOW_HEIGHT / 2.0 - 80.0]),
-            RectSize::from((200.0, 50.0)),
+            start_point_of_button_in_set(0, 300.0),
+            text_button_rectsize(),
             "Resume".to_string(),
-            30.0,
-            Color::from_rgb(100, 100, 100),
-            Color::WHITE,
-        )?;
-
-        let exit_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 80.0, WINDOW_HEIGHT / 2.0 + 80.0]),
-            RectSize::from((200.0, 50.0)),
-            "Exit".to_string(),
-            30.0,
-            Color::from_rgb(100, 100, 100),
+            BUTTON_TEXT_SIZE,
+            Color::BLACK,
             Color::WHITE,
         )?;
 
         let select_level_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 80.0, WINDOW_HEIGHT / 2.0]),
-            RectSize::from((200.0, 50.0)),
+            start_point_of_button_in_set(1, 300.0),
+            text_button_rectsize(),
             "Select Level".to_string(),
-            30.0,
-            Color::from_rgb(100, 100, 100),
+            BUTTON_TEXT_SIZE,
+            Color::BLACK,
+            Color::WHITE,
+        )?;
+
+        let exit_button = TextButton::new(
+            start_point_of_button_in_set(2, 300.0),
+            text_button_rectsize(),
+            "Exit".to_string(),
+            BUTTON_TEXT_SIZE,
+            Color::BLACK,
             Color::WHITE,
         )?;
 
@@ -139,8 +144,8 @@ impl GameState {
             RectSize::from((100.0, 40.0)),
             "Menu".to_string(),
             24.0,
+            Color::BLACK,
             Color::WHITE,
-            Color::from_rgb(100, 100, 100),
         )?;
 
         let levels = get_levels();
@@ -156,9 +161,9 @@ impl GameState {
             resources,
             falling_objects: Vec::new(),
             last_update: Instant::now(),
+            level_start_time: Instant::now(),
             paused_time: None,
             audio,
-            level_start_time: Instant::now(),
             audio_button,
             start_button,
             resume_button,
@@ -196,7 +201,7 @@ impl GameState {
 
         let object = FallingObject::new(
             Point2::from_slice(&[x, 0.0]),
-            Vector2::from_slice(&[0.08, 0.08]),
+            object_scaling(),
             is_good,
             good_object_value,
             &self.resources,
@@ -288,7 +293,7 @@ impl GameState {
         self.player = Player::new(
             ctx,
             Point2::from_slice(&[WINDOW_WIDTH / 2.0, WINDOW_HEIGHT - 175.0]),
-            Vector2::from_slice(&[0.4, 0.4]),
+            player_scaling(),
             &self.resources.player_image,
         )?;
 
@@ -329,41 +334,17 @@ impl GameState {
     }
 
     fn update_menu(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.start_button.coords.x,
-                self.start_button.coords.y,
-                self.start_button.size.w,
-                self.start_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.start_button)) {
             self.level_start_time = Instant::now();
             self.last_update = Instant::now();
             self.game_mode = GameMode::Playing;
         }
 
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.select_level_button.coords.x,
-                self.select_level_button.coords.y,
-                self.select_level_button.size.w,
-                self.select_level_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.select_level_button)) {
             self.game_mode = GameMode::LevelSelection;
         }
 
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.exit_button.coords.x,
-                self.exit_button.coords.y,
-                self.exit_button.size.w,
-                self.exit_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.exit_button)) {
             quit(ctx);
         }
         Ok(())
@@ -405,32 +386,12 @@ impl GameState {
         if self.is_paused {
             return Ok(());
         }
-        let (width, height) = (
-            self.audio_button.icon.width() as f32 * self.audio_button.scaling.x,
-            self.audio_button.icon.height() as f32 * self.audio_button.scaling.y,
-        );
 
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.audio_button.coords.x,
-                self.audio_button.coords.y,
-                width,
-                height,
-            ),
-        ) {
+        if is_button_clicked(ctx, icon_button_rect(&self.audio_button)) {
             self.audio.is_muted = !self.audio.is_muted;
         }
 
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.menu_button.coords.x,
-                self.menu_button.coords.y,
-                self.menu_button.size.w,
-                self.menu_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.menu_button)) {
             self.game_mode = GameMode::Menu;
         }
 
@@ -442,7 +403,7 @@ impl GameState {
             }
         }
 
-        if self.last_update.elapsed() >= Duration::from_millis(800) {
+        if self.last_update.elapsed() >= Duration::from_millis(FALLING_OBJECT_UPDATE_MILLIS) {
             self.last_update = Instant::now();
             self.create_falling_object()?;
         }
@@ -477,8 +438,8 @@ impl GameState {
         let text_to_draw = DrawText::new(
             Point2::from_slice(&[525.0, 10.0]),
             text,
-            32.0,
-            Color::from_rgb(80, 80, 80),
+            BUTTON_TEXT_SIZE,
+            Color::from_rgb(120, 120, 120),
         )?;
 
         draw_text(ctx, text_to_draw, self.resources.fonts.level_font)?;
@@ -496,7 +457,7 @@ impl GameState {
         let level_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 10.0]),
             level_score_text,
-            30.0,
+            BUTTON_TEXT_SIZE,
             Color::WHITE,
         )?;
         draw_score(
@@ -515,7 +476,7 @@ impl GameState {
         let total_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 50.0]),
             total_score_text,
-            30.0,
+            BUTTON_TEXT_SIZE,
             Color::WHITE,
         )?;
         draw_score(
@@ -527,7 +488,7 @@ impl GameState {
         let lives_text_to_draw = DrawText::new(
             Point2::from_slice(&[530.0, 60.0]),
             format!("Lives: {}", self.lives),
-            32.0,
+            BUTTON_TEXT_SIZE,
             Color::WHITE,
         )?;
         draw_text(ctx, lives_text_to_draw, self.resources.fonts.lives_font)?;
@@ -545,15 +506,7 @@ impl GameState {
             self.level_complete_sound_played = true;
         }
 
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.next_level_button.coords.x,
-                self.next_level_button.coords.y,
-                self.next_level_button.size.w,
-                self.next_level_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.next_level_button)) {
             self.current_level += 1;
             self.reset(ctx)?;
         }
@@ -583,15 +536,7 @@ impl GameState {
             self.audio.play_sound(ctx, "game_over".to_string())?;
             self.game_over_sound_played = true;
         }
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.restart_button.coords.x,
-                self.restart_button.coords.y,
-                self.restart_button.size.w,
-                self.restart_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.restart_button)) {
             self.current_level = 0;
             self.reset(ctx)?;
         }
@@ -621,27 +566,20 @@ impl GameState {
             self.audio.play_sound(ctx, "victory".to_string())?;
             self.victory_sound_played = true;
         }
-        if is_button_clicked(
-            ctx,
-            Rect::new(
-                self.restart_button.coords.x,
-                self.restart_button.coords.y,
-                self.restart_button.size.w,
-                self.restart_button.size.h,
-            ),
-        ) {
+        if is_button_clicked(ctx, text_button_rect(&self.restart_button)) {
             self.current_level = 0;
             self.reset(ctx)?;
         }
         Ok(())
     }
+
     fn draw_victory(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
         draw_background(ctx, &self.resources.background_image)?;
         let game_complete_text = DrawText::new(
             Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 195.0, WINDOW_HEIGHT / 2.0 - 125.0]),
             "You Win! Game Over".to_string(),
             48.0,
-            Color::from_rgb(0, 255, 100),
+            Color::BLACK,
         )?;
         draw_text(ctx, game_complete_text, self.resources.fonts.level_font)?;
 
@@ -649,7 +587,7 @@ impl GameState {
         let final_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 100.0, WINDOW_HEIGHT / 2.0 - 75.0]),
             final_score_text,
-            32.0,
+            BUTTON_TEXT_SIZE,
             Color::WHITE,
         )?;
         draw_text(
@@ -668,17 +606,9 @@ impl GameState {
     fn update_select_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
         let levels = self.levels.clone();
         for (i, _) in levels.iter().enumerate() {
-            let level_button = get_level_button(i)?;
+            let level_button = get_level_button(i, 100.0)?;
 
-            if is_button_clicked(
-                ctx,
-                Rect::new(
-                    level_button.coords.x,
-                    level_button.coords.y,
-                    level_button.size.w,
-                    level_button.size.h,
-                ),
-            ) {
+            if is_button_clicked(ctx, text_button_rect(&level_button)) {
                 self.current_level = i;
                 self.reset(ctx)?;
             }
@@ -690,7 +620,7 @@ impl GameState {
     fn draw_select_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
         draw_background(ctx, &self.resources.menu_background_image)?;
         for (i, _) in self.levels.iter().enumerate() {
-            let level_button = get_level_button(i)?;
+            let level_button = get_level_button(i, 100.0)?;
 
             draw_button_with_text(ctx, level_button, self.resources.fonts.lives_font)?;
         }

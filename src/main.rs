@@ -18,8 +18,7 @@ fn main() -> GameResult<()> {
         .add_resource_path("./resources")
         .window_setup(WindowSetup::default().title("My Awesome Game"))
         .window_mode(window_mode)
-        .build()
-        .expect("Could not create ggez context!");
+        .build()?;
 
     let audio_manager = AudioManager::new(&mut ctx)?;
     let levels = get_levels();

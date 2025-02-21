@@ -1,1 +1,6 @@
 target/
+build/
+.dockerignore
+Dockerfile
+dodger-game.tar
+src/wrapper.sh
