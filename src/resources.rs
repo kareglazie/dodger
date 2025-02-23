@@ -6,7 +6,7 @@ use ggez::{
 use crate::{errors::DodgerError, levels::Level};
 
 pub fn add_fonts(ctx: &mut Context) -> Result<(), DodgerError> {
-    let button_font_path = "/Fonts/aloevera.ttf";
+    let button_font_path = "/Fonts/cacha.ttf";
     let text_font_path = "/Fonts/superfunky.ttf";
     ctx.gfx.add_font(
         "button_font",

@@ -48,10 +48,12 @@ pub struct GameState {
     exit_button: TextButton,
     resume_button: TextButton,
     menu_button: TextButton,
+    back_to_menu_button: TextButton,
     pause_button: IconButton,
     next_level_button: TextButton,
     restart_button: TextButton,
     select_level_button: TextButton,
+    howtoplay_button: TextButton,
     lives: u8,
     game_mode: GameMode,
     level_complete_sound_played: bool,
@@ -138,8 +140,18 @@ impl GameState {
             "button_font".to_string(),
         )?;
 
-        let exit_button = TextButton::new(
+        let howtoplay_button = TextButton::new(
             start_point_of_button_in_set(2, 300.0),
+            Color::WHITE,
+            default_text_button_size,
+            "How to Play".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
+        )?;
+
+        let exit_button = TextButton::new(
+            start_point_of_button_in_set(3, 300.0),
             Color::WHITE,
             default_text_button_size,
             "Exit".to_string(),
@@ -153,6 +165,16 @@ impl GameState {
             Color::WHITE,
             RectSize::from((100.0, 40.0)),
             "Menu".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
+        )?;
+
+        let back_to_menu_button = TextButton::new(
+            Point2::from_slice(&[WINDOW_WIDTH - 200.0, 10.0]),
+            Color::WHITE,
+            RectSize::from((100.0, 40.0)),
+            "Back".to_string(),
             Color::BLACK,
             BUTTON_TEXT_SIZE,
             "button_font".to_string(),
@@ -179,10 +201,12 @@ impl GameState {
             resume_button,
             exit_button,
             menu_button,
+            back_to_menu_button,
             pause_button,
             next_level_button,
             restart_button,
             select_level_button,
+            howtoplay_button,
             lives: LIVES,
             game_mode: GameMode::Menu,
             level_complete_sound_played: false,
@@ -364,6 +388,10 @@ impl GameState {
             self.game_mode = GameMode::LevelSelection;
         }
 
+        if is_button_clicked(ctx, text_button_rect(&self.howtoplay_button)?) {
+            self.game_mode = GameMode::HowToPlay;
+        }
+
         if is_button_clicked(ctx, text_button_rect(&self.exit_button)?) {
             ctx.request_quit();
         }
@@ -379,6 +407,7 @@ impl GameState {
         }
         draw_button_with_text(ctx, canvas, self.exit_button.clone())?;
         draw_button_with_text(ctx, canvas, self.select_level_button.clone())?;
+        draw_button_with_text(ctx, canvas, self.howtoplay_button.clone())?;
         Ok(())
     }
 
@@ -525,6 +554,58 @@ impl GameState {
         Ok(())
     }
 
+    fn update_how_to_play(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
+        if is_button_clicked(ctx, text_button_rect(&self.back_to_menu_button)?) {
+            self.game_mode = GameMode::Menu;
+        }
+        Ok(())
+    }
+
+    fn draw_how_to_play(
+        &mut self,
+        ctx: &mut Context,
+        canvas: &mut Canvas,
+    ) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.menu_background_image);
+
+        let title = DrawText::new(
+            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 150.0, 150.0]),
+            "How to Play".to_string(),
+            "text_font".to_string(),
+            48.0,
+            Color::WHITE,
+        )?;
+        draw_text(canvas, title)?;
+
+        let instructions = vec![
+            "Use Left/Right arrows to move the player.",
+            "Press Space to pause the game.",
+            "Catch good objects to earn points:",
+            "  - High value: 30 points",
+            "  - Medium value: 15 points",
+            "  - Low value: 5 points",
+            "Avoid bad objects! They reduce your lives.",
+            "Each level lasts 40 seconds.",
+        ];
+
+        let mut y_offset = 250.0;
+        for line in instructions {
+            let instruction_text = DrawText::new(
+                Point2::from_slice(&[150.0, y_offset]),
+                line.to_string(),
+                "text_font".to_string(),
+                TEXT_SIZE,
+                Color::WHITE,
+            )?;
+            draw_text(canvas, instruction_text)?;
+            y_offset += 50.0;
+        }
+
+        draw_button_with_text(ctx, canvas, self.back_to_menu_button.clone())?;
+
+        Ok(())
+    }
+
     fn update_game_over(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_over_sound_played {
             self.audio.play_sound(ctx, "game_over".to_string())?;
@@ -631,6 +712,7 @@ impl EventHandler<GameError> for GameState {
             GameMode::NextLevel => self.update_next_level(ctx),
             GameMode::Victory => self.update_victory(ctx),
             GameMode::LevelSelection => self.update_select_level(ctx),
+            GameMode::HowToPlay => self.update_how_to_play(ctx),
         }?;
         Ok(())
     }
@@ -645,6 +727,7 @@ impl EventHandler<GameError> for GameState {
             GameMode::NextLevel => self.draw_next_level(ctx, &mut canvas),
             GameMode::Victory => self.draw_victory(ctx, &mut canvas),
             GameMode::LevelSelection => self.draw_select_level(ctx, &mut canvas),
+            GameMode::HowToPlay => self.draw_how_to_play(ctx, &mut canvas),
         }?;
 
         canvas.finish(&mut ctx.gfx)?;
