@@ -1,9 +1,9 @@
 use crate::{
-    errors::DrawError,
+    errors::DodgerError,
     utils::{validate_coordinates, RectSize},
 };
 use ggez::{
-    graphics::{Color, Image},
+    graphics::{Color, Image, PxScale, Text, TextFragment},
     mint::{Point2, Vector2},
 };
 
@@ -15,7 +15,11 @@ pub struct IconButton {
     pub icon: Image,
 }
 impl IconButton {
-    pub fn new(coords: Point2<f32>, scaling: Vector2<f32>, icon: Image) -> Result<Self, DrawError> {
+    pub fn new(
+        coords: Point2<f32>,
+        scaling: Vector2<f32>,
+        icon: Image,
+    ) -> Result<Self, DodgerError> {
         let validated_coords = validate_coordinates(coords)?;
         Ok(Self {
             coords: validated_coords,
@@ -29,54 +33,60 @@ impl IconButton {
 /// Кнопка с текстом
 pub struct TextButton {
     pub coords: Point2<f32>,
-    pub size: RectSize,
-    pub text: String,
-    pub text_size: f32,
-    pub text_color: Color,
     pub button_color: Color,
+    pub button_size: RectSize,
+    pub text: Text,
 }
 
 impl TextButton {
     pub fn new(
         coords: Point2<f32>,
-        size: RectSize,
-        text: String,
-        text_size: f32,
-        text_color: Color,
         button_color: Color,
-    ) -> Result<Self, DrawError> {
+        button_size: RectSize,
+        line: String,
+        text_color: Color,
+        text_scale: f32,
+        font: String,
+    ) -> Result<Self, DodgerError> {
         let validated_coords = validate_coordinates(coords)?;
+        let text = Text::new(TextFragment {
+            text: line,
+            font: Some(font),
+            scale: Some(PxScale::from(text_scale)),
+            color: Some(text_color),
+        });
         Ok(Self {
             coords: validated_coords,
-            size,
-            text,
-            text_size,
-            text_color,
             button_color,
+            button_size,
+            text,
         })
     }
 }
 
 pub struct DrawText {
     pub coords: Point2<f32>,
-    pub text: String,
-    pub size: f32,
-    pub color: Color,
+    pub text: Text,
 }
 
 impl DrawText {
     pub fn new(
         coords: Point2<f32>,
-        text: String,
-        size: f32,
+        line: String,
+        font: String,
+        scale: f32,
         color: Color,
-    ) -> Result<Self, DrawError> {
+    ) -> Result<Self, DodgerError> {
         let validated_coords = validate_coordinates(coords)?;
+        let text = Text::new(TextFragment {
+            text: line,
+            font: Some(font),
+            scale: Some(PxScale::from(scale)),
+            color: Some(color),
+        });
         Ok(Self {
             coords: validated_coords,
             text,
-            size,
-            color,
         })
     }
 }

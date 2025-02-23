@@ -1,9 +1,10 @@
 use std::time::{Duration, Instant};
 
 use ggez::{
-    event::{quit, EventHandler, KeyCode, KeyMods},
-    graphics::{clear, present, Color},
-    mint::Point2,
+    event::EventHandler,
+    graphics::{Canvas, Color},
+    input::keyboard::{KeyCode, KeyInput},
+    mint::{Point2, Vector2},
     Context, GameError, GameResult,
 };
 
@@ -12,15 +13,15 @@ use rand::Rng;
 use crate::{
     buttons::{DrawText, IconButton, TextButton},
     consts::{
-        BUTTON_TEXT_SIZE, FALLING_OBJECT_UPDATE_MILLIS, LEVEL_DURATION_SECS, LIVES, WINDOW_HEIGHT,
-        WINDOW_WIDTH,
+        BUTTON_TEXT_SIZE, FALLING_OBJECT_UPDATE_MILLIS, LEVEL_DURATION_SECS, LIVES, TEXT_SIZE,
+        WINDOW_HEIGHT, WINDOW_WIDTH,
     },
-    errors::DrawError,
+    errors::DodgerError,
     levels::{get_levels, Level},
     modes::GameMode,
     objects::{FallingObject, GoodObjectValue},
     player::Player,
-    resources::Resources,
+    resources::{add_fonts, Resources},
     sound::AudioManager,
     ui::{draw_background, draw_button_with_text, draw_icon, draw_score, draw_text, draw_timer},
     utils::{
@@ -66,25 +67,28 @@ impl GameState {
         resources: Resources,
         current_level: usize,
         audio_manager: AudioManager,
-    ) -> Result<Self, DrawError> {
+    ) -> Result<Self, DodgerError> {
+        add_fonts(ctx)?;
         let player = Player::new(
             ctx,
             Point2::from_slice(&[WINDOW_WIDTH / 2.0, WINDOW_HEIGHT - 175.0]),
             player_scaling(),
             &resources.player_image,
         )?;
+        let default_text_button_size = text_button_rectsize();
         let restart_button = TextButton::new(
             start_point_of_centered_button(),
-            text_button_rectsize(),
-            "Restart".to_string(),
-            BUTTON_TEXT_SIZE,
-            Color::BLACK,
             Color::WHITE,
+            default_text_button_size,
+            "Restart".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let audio_button = IconButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH - 50.0, 60.0]),
-            object_scaling(),
+            Point2::from_slice(&[WINDOW_WIDTH - 85.0, 60.0]),
+            Vector2::from_slice(&[0.15, 0.15]),
             audio_manager.speaker_icon,
         )?;
 
@@ -96,56 +100,62 @@ impl GameState {
 
         let next_level_button = TextButton::new(
             start_point_of_centered_button(),
-            text_button_rectsize(),
-            "Next Level".to_string(),
-            BUTTON_TEXT_SIZE,
             Color::WHITE,
+            default_text_button_size,
+            "Next Level".to_string(),
             Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let start_button = TextButton::new(
             start_point_of_button_in_set(0, 300.0),
-            text_button_rectsize(),
-            "Start".to_string(),
-            BUTTON_TEXT_SIZE,
-            Color::BLACK,
             Color::WHITE,
+            default_text_button_size,
+            "Start".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let resume_button = TextButton::new(
             start_point_of_button_in_set(0, 300.0),
-            text_button_rectsize(),
-            "Resume".to_string(),
-            BUTTON_TEXT_SIZE,
-            Color::BLACK,
             Color::WHITE,
+            default_text_button_size,
+            "Resume".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let select_level_button = TextButton::new(
             start_point_of_button_in_set(1, 300.0),
-            text_button_rectsize(),
-            "Select Level".to_string(),
-            BUTTON_TEXT_SIZE,
-            Color::BLACK,
             Color::WHITE,
+            default_text_button_size,
+            "Select Level".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let exit_button = TextButton::new(
             start_point_of_button_in_set(2, 300.0),
-            text_button_rectsize(),
-            "Exit".to_string(),
-            BUTTON_TEXT_SIZE,
-            Color::BLACK,
             Color::WHITE,
+            default_text_button_size,
+            "Exit".to_string(),
+            Color::BLACK,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let menu_button = TextButton::new(
-            Point2::from_slice(&[WINDOW_WIDTH - 100.0, 10.0]),
+            Point2::from_slice(&[WINDOW_WIDTH - 200.0, 10.0]),
+            Color::WHITE,
             RectSize::from((100.0, 40.0)),
             "Menu".to_string(),
-            24.0,
             Color::BLACK,
-            Color::WHITE,
+            BUTTON_TEXT_SIZE,
+            "button_font".to_string(),
         )?;
 
         let levels = get_levels();
@@ -184,7 +194,7 @@ impl GameState {
         Ok(game)
     }
 
-    fn create_falling_object(&mut self) -> Result<(), DrawError> {
+    fn create_falling_object(&mut self) -> Result<(), DodgerError> {
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(25.0..WINDOW_WIDTH - 25.0); // Случайная горизонтальная позиция
         let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
@@ -212,7 +222,7 @@ impl GameState {
         Ok(())
     }
 
-    fn handle_collisions(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn handle_collisions(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         let player_rect = self.player.rect();
 
         for obj in &mut self.falling_objects {
@@ -270,7 +280,7 @@ impl GameState {
         Ok(())
     }
 
-    fn reset(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn reset(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if self.game_mode == GameMode::GameOver
             || self.game_mode == GameMode::Victory
             || self.game_mode == GameMode::LevelSelection
@@ -333,66 +343,61 @@ impl GameState {
         }
     }
 
-    fn update_menu(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        if is_button_clicked(ctx, text_button_rect(&self.start_button)) {
-            self.level_start_time = Instant::now();
-            self.last_update = Instant::now();
+    fn update_menu(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
+        if !self.game_started {
+            if is_button_clicked(ctx, text_button_rect(&self.start_button)?) {
+                self.level_start_time = Instant::now();
+                self.last_update = Instant::now();
+                self.game_mode = GameMode::Playing;
+            }
+        } else if is_button_clicked(ctx, text_button_rect(&self.resume_button)?) {
+            if let Some(paused_time) = self.paused_time {
+                let pause_duration = paused_time.elapsed();
+                self.last_update += pause_duration;
+                self.level_start_time += pause_duration;
+            }
+            self.paused_time = None;
             self.game_mode = GameMode::Playing;
         }
 
-        if is_button_clicked(ctx, text_button_rect(&self.select_level_button)) {
+        if is_button_clicked(ctx, text_button_rect(&self.select_level_button)?) {
             self.game_mode = GameMode::LevelSelection;
         }
 
-        if is_button_clicked(ctx, text_button_rect(&self.exit_button)) {
-            quit(ctx);
+        if is_button_clicked(ctx, text_button_rect(&self.exit_button)?) {
+            ctx.request_quit();
         }
         Ok(())
     }
 
-    fn draw_menu(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.menu_background_image)?;
+    fn draw_menu(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.menu_background_image);
         if !self.game_started {
-            draw_button_with_text(
-                ctx,
-                self.start_button.clone(),
-                self.resources.fonts.lives_font,
-            )?;
+            draw_button_with_text(ctx, canvas, self.start_button.clone())?;
         } else {
-            draw_button_with_text(
-                ctx,
-                self.resume_button.clone(),
-                self.resources.fonts.lives_font,
-            )?;
+            draw_button_with_text(ctx, canvas, self.resume_button.clone())?;
         }
-        draw_button_with_text(
-            ctx,
-            self.exit_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
-        draw_button_with_text(
-            ctx,
-            self.select_level_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
+        draw_button_with_text(ctx, canvas, self.exit_button.clone())?;
+        draw_button_with_text(ctx, canvas, self.select_level_button.clone())?;
         Ok(())
     }
 
-    fn update_playing(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn update_playing(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_started {
             self.game_started = true;
         }
 
-        if self.is_paused {
-            return Ok(());
-        }
-
-        if is_button_clicked(ctx, icon_button_rect(&self.audio_button)) {
+        if is_button_clicked(ctx, icon_button_rect(&self.audio_button)?) {
             self.audio.is_muted = !self.audio.is_muted;
         }
 
-        if is_button_clicked(ctx, text_button_rect(&self.menu_button)) {
+        if is_button_clicked(ctx, text_button_rect(&self.menu_button)?) {
             self.game_mode = GameMode::Menu;
+            self.paused_time = Some(Instant::now());
+        }
+
+        if self.is_paused {
+            return Ok(());
         }
 
         if self.level_start_time.elapsed() >= Duration::from_secs(LEVEL_DURATION_SECS) {
@@ -425,88 +430,76 @@ impl GameState {
         Ok(())
     }
 
-    fn draw_playing(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.background_image)?;
-        self.player.draw(ctx)?;
-        draw_button_with_text(
-            ctx,
-            self.menu_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
+    fn draw_playing(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.background_image);
+        self.player.draw(canvas)?;
+        draw_button_with_text(ctx, canvas, self.menu_button.clone())?;
 
-        let text = format!("Level: {}", self.current_level + 1);
+        let text = format!("Level {}", self.current_level + 1);
         let text_to_draw = DrawText::new(
             Point2::from_slice(&[525.0, 10.0]),
             text,
-            BUTTON_TEXT_SIZE,
-            Color::from_rgb(120, 120, 120),
+            "text_font".to_string(),
+            TEXT_SIZE,
+            Color::WHITE,
         )?;
 
-        draw_text(ctx, text_to_draw, self.resources.fonts.level_font)?;
+        draw_text(canvas, text_to_draw)?;
         if self.audio.is_muted {
             self.audio_button.icon = self.audio.speaker_muted_icon.clone();
         } else {
             self.audio_button.icon = self.audio.speaker_icon.clone();
         };
-        draw_icon(ctx, &self.audio_button)?;
+        draw_icon(canvas, &self.audio_button)?;
         for obj in &mut self.falling_objects {
-            obj.draw(ctx)?;
+            obj.draw(canvas)?;
         }
 
         let level_score_text = format!("Level Score: {}", self.level_score);
         let level_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 10.0]),
             level_score_text,
-            BUTTON_TEXT_SIZE,
+            "text_font".to_string(),
+            TEXT_SIZE,
             Color::WHITE,
         )?;
-        draw_score(
-            ctx,
-            level_score_text_to_draw,
-            self.resources.fonts.score_font,
-        )?;
+        draw_score(canvas, level_score_text_to_draw)?;
 
-        draw_timer(
-            ctx,
-            self.get_remaining_time(),
-            self.resources.fonts.level_font,
-        )?;
+        draw_timer(ctx, canvas, self.get_remaining_time())?;
 
         let total_score_text = format!("Total Score: {}", self.level_score + self.total_score);
         let total_score_text_to_draw = DrawText::new(
             Point2::from_slice(&[10.0, 50.0]),
             total_score_text,
-            BUTTON_TEXT_SIZE,
+            "text_font".to_string(),
+            TEXT_SIZE,
             Color::WHITE,
         )?;
-        draw_score(
-            ctx,
-            total_score_text_to_draw,
-            self.resources.fonts.score_font,
-        )?;
+        draw_score(canvas, total_score_text_to_draw)?;
 
         let lives_text_to_draw = DrawText::new(
             Point2::from_slice(&[530.0, 60.0]),
             format!("Lives: {}", self.lives),
-            BUTTON_TEXT_SIZE,
+            "text_font".to_string(),
+            TEXT_SIZE,
             Color::WHITE,
         )?;
-        draw_text(ctx, lives_text_to_draw, self.resources.fonts.lives_font)?;
+        draw_text(canvas, lives_text_to_draw)?;
 
         if self.is_paused {
-            draw_icon(ctx, &self.pause_button)?;
+            draw_icon(canvas, &self.pause_button)?;
         }
 
         Ok(())
     }
 
-    fn update_next_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn update_next_level(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.level_complete_sound_played {
             self.audio.play_sound(ctx, "level_completed".to_string())?;
             self.level_complete_sound_played = true;
         }
 
-        if is_button_clicked(ctx, text_button_rect(&self.next_level_button)) {
+        if is_button_clicked(ctx, text_button_rect(&self.next_level_button)?) {
             self.current_level += 1;
             self.reset(ctx)?;
         }
@@ -514,101 +507,97 @@ impl GameState {
         Ok(())
     }
 
-    fn draw_next_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.background_image)?;
+    fn draw_next_level(
+        &mut self,
+        ctx: &mut Context,
+        canvas: &mut Canvas,
+    ) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.background_image);
         let level_complete_text = DrawText::new(
             Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 160.0, WINDOW_HEIGHT / 2.0 - 100.0]),
             "Level Complete!".to_string(),
+            "text_font".to_string(),
             48.0,
             Color::WHITE,
         )?;
-        draw_text(ctx, level_complete_text, self.resources.fonts.level_font)?;
-        draw_button_with_text(
-            ctx,
-            self.next_level_button.clone(),
-            self.resources.fonts.level_font,
-        )?;
+        draw_text(canvas, level_complete_text)?;
+        draw_button_with_text(ctx, canvas, self.next_level_button.clone())?;
         Ok(())
     }
 
-    fn update_game_over(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn update_game_over(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_over_sound_played {
             self.audio.play_sound(ctx, "game_over".to_string())?;
             self.game_over_sound_played = true;
         }
-        if is_button_clicked(ctx, text_button_rect(&self.restart_button)) {
+        if is_button_clicked(ctx, text_button_rect(&self.restart_button)?) {
             self.current_level = 0;
             self.reset(ctx)?;
         }
         Ok(())
     }
 
-    fn draw_game_over(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.background_image)?;
+    fn draw_game_over(
+        &mut self,
+        ctx: &mut Context,
+        canvas: &mut Canvas,
+    ) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.background_image);
         let game_over_text = DrawText::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 90.0, WINDOW_HEIGHT / 2.0 - 75.0]),
+            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 95.0, WINDOW_HEIGHT / 2.0 - 75.0]),
             "Game Over".to_string(),
+            "text_font".to_string(),
             48.0,
             Color::WHITE,
         )?;
-        draw_text(ctx, game_over_text, self.resources.fonts.score_font)?;
+        draw_text(canvas, game_over_text)?;
 
-        draw_button_with_text(
-            ctx,
-            self.restart_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
+        draw_button_with_text(ctx, canvas, self.restart_button.clone())?;
         Ok(())
     }
 
-    fn update_victory(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn update_victory(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.victory_sound_played {
             self.audio.play_sound(ctx, "victory".to_string())?;
             self.victory_sound_played = true;
         }
-        if is_button_clicked(ctx, text_button_rect(&self.restart_button)) {
+        if is_button_clicked(ctx, text_button_rect(&self.restart_button)?) {
             self.current_level = 0;
             self.reset(ctx)?;
         }
         Ok(())
     }
 
-    fn draw_victory(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.background_image)?;
+    fn draw_victory(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.background_image);
         let game_complete_text = DrawText::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 195.0, WINDOW_HEIGHT / 2.0 - 125.0]),
+            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 185.0, WINDOW_HEIGHT / 2.0 - 125.0]),
             "You Win! Game Over".to_string(),
+            "text_font".to_string(),
             48.0,
-            Color::BLACK,
+            Color::WHITE,
         )?;
-        draw_text(ctx, game_complete_text, self.resources.fonts.level_font)?;
+        draw_text(canvas, game_complete_text)?;
 
         let final_score_text = format!("Final Score: {}", self.total_score + self.level_score);
         let final_score_text_to_draw = DrawText::new(
-            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 100.0, WINDOW_HEIGHT / 2.0 - 75.0]),
+            Point2::from_slice(&[WINDOW_WIDTH / 2.0 - 110.0, WINDOW_HEIGHT / 2.0 - 75.0]),
             final_score_text,
-            BUTTON_TEXT_SIZE,
+            "text_font".to_string(),
+            TEXT_SIZE,
             Color::WHITE,
         )?;
-        draw_text(
-            ctx,
-            final_score_text_to_draw,
-            self.resources.fonts.lives_font,
-        )?;
-        draw_button_with_text(
-            ctx,
-            self.restart_button.clone(),
-            self.resources.fonts.lives_font,
-        )?;
+        draw_text(canvas, final_score_text_to_draw)?;
+        draw_button_with_text(ctx, canvas, self.restart_button.clone())?;
         Ok(())
     }
 
-    fn update_select_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    fn update_select_level(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         let levels = self.levels.clone();
         for (i, _) in levels.iter().enumerate() {
-            let level_button = get_level_button(i, 100.0)?;
+            let level_button = get_level_button(i, 100.0, "button_font".to_string())?;
 
-            if is_button_clicked(ctx, text_button_rect(&level_button)) {
+            if is_button_clicked(ctx, text_button_rect(&level_button)?) {
                 self.current_level = i;
                 self.reset(ctx)?;
             }
@@ -617,12 +606,16 @@ impl GameState {
         Ok(())
     }
 
-    fn draw_select_level(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
-        draw_background(ctx, &self.resources.menu_background_image)?;
+    fn draw_select_level(
+        &mut self,
+        ctx: &mut Context,
+        canvas: &mut Canvas,
+    ) -> Result<(), DodgerError> {
+        draw_background(canvas, &self.resources.menu_background_image);
         for (i, _) in self.levels.iter().enumerate() {
-            let level_button = get_level_button(i, 100.0)?;
+            let level_button = get_level_button(i, 100.0, "button_font".to_string())?;
 
-            draw_button_with_text(ctx, level_button, self.resources.fonts.lives_font)?;
+            draw_button_with_text(ctx, canvas, level_button)?;
         }
 
         Ok(())
@@ -643,45 +636,44 @@ impl EventHandler<GameError> for GameState {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        clear(ctx, Color::from_rgb(0, 0, 0));
-        draw_background(ctx, &self.resources.background_image)?;
+        let mut canvas = Canvas::from_frame(ctx, Color::from([0.0, 0.0, 0.0, 0.0]));
 
         match self.game_mode {
-            GameMode::Menu => self.draw_menu(ctx),
-            GameMode::Playing => self.draw_playing(ctx),
-            GameMode::GameOver => self.draw_game_over(ctx),
-            GameMode::NextLevel => self.draw_next_level(ctx),
-            GameMode::Victory => self.draw_victory(ctx),
-            GameMode::LevelSelection => self.draw_select_level(ctx),
+            GameMode::Menu => self.draw_menu(ctx, &mut canvas),
+            GameMode::Playing => self.draw_playing(ctx, &mut canvas),
+            GameMode::GameOver => self.draw_game_over(ctx, &mut canvas),
+            GameMode::NextLevel => self.draw_next_level(ctx, &mut canvas),
+            GameMode::Victory => self.draw_victory(ctx, &mut canvas),
+            GameMode::LevelSelection => self.draw_select_level(ctx, &mut canvas),
         }?;
 
-        present(ctx)?;
+        canvas.finish(&mut ctx.gfx)?;
         Ok(())
     }
 
     fn key_down_event(
         &mut self,
         _ctx: &mut Context,
-        keycode: KeyCode,
-        _keymods: KeyMods,
+        input: KeyInput,
         _repeat: bool,
-    ) {
-        match keycode {
-            KeyCode::Space => match self.is_paused {
+    ) -> GameResult<()> {
+        match input.keycode {
+            Some(KeyCode::Space) => match self.is_paused {
                 true => self.resume(),
                 false => self.pause(),
             },
-            KeyCode::Left => {
+            Some(KeyCode::Left) => {
                 if self.player.coords.x > 0.0 {
                     self.player.move_left();
                 }
             }
-            KeyCode::Right => {
+            Some(KeyCode::Right) => {
                 if self.player.coords.x < WINDOW_WIDTH - self.player.size.w {
                     self.player.move_right();
                 }
             }
             _ => (),
         }
+        Ok(())
     }
 }

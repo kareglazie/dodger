@@ -1,24 +1,20 @@
 use crate::{
     buttons::{DrawText, IconButton, TextButton},
-    consts::{WINDOW_HEIGHT, WINDOW_WIDTH},
-    errors::DrawError,
-    utils::validate_coordinates,
+    consts::{BUTTON_TEXT_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH, YELLOW},
+    errors::DodgerError,
+    utils::{text_button_rect, validate_coordinates, RectSize},
 };
 use ggez::{
-    graphics::{
-        draw, draw_queued_text, queue_text, Color, DrawMode, DrawParam, FilterMode, Font, Image,
-        Mesh, Rect, Text,
-    },
+    graphics::{Canvas, Color, DrawMode, DrawParam, Drawable, Image, Mesh},
     mint::{Point2, Vector2},
     Context,
 };
 
-pub fn draw_background(ctx: &mut Context, image: &Image) -> Result<(), DrawError> {
+pub fn draw_background(canvas: &mut Canvas, image: &Image) {
     let scale_x = WINDOW_WIDTH / image.width() as f32;
     let scale_y = WINDOW_HEIGHT / image.height() as f32;
 
-    draw(
-        ctx,
+    canvas.draw(
         image,
         DrawParam::default()
             .dest(Point2 { x: 0.0, y: 0.0 })
@@ -27,85 +23,122 @@ pub fn draw_background(ctx: &mut Context, image: &Image) -> Result<(), DrawError
                 y: scale_y,
             }),
     )
-    .map_err(|err| DrawError::DrawBackground(err.to_string()))
 }
 
-pub fn draw_text(ctx: &mut Context, text_params: DrawText, font: Font) -> Result<(), DrawError> {
-    let validated_coords = validate_coordinates(text_params.coords)?;
-    let text = Text::new((text_params.text.clone(), font, text_params.size));
-    draw(ctx, &text, (validated_coords, text_params.color))
-        .map_err(|err| DrawError::DrawText(text_params.text, err.to_string()))
+pub fn draw_text(canvas: &mut Canvas, text: DrawText) -> Result<(), DodgerError> {
+    let validated_coords = validate_coordinates(text.coords)?;
+    canvas.draw(&text.text, DrawParam::default().dest(validated_coords));
+    Ok(())
 }
 
-pub fn draw_timer(ctx: &mut Context, remaining_time: u64, font: Font) -> Result<(), DrawError> {
-    let timer_text = Text::new((
-        (if remaining_time < 10 {
-            format!("00:0{}", remaining_time)
-        } else {
-            format!("00:{}", remaining_time)
-        }),
-        font,
-        32.0,
-    ));
-    let coords = validate_coordinates(Point2 { x: 290.0, y: 10.0 })?;
-    draw(ctx, &timer_text, (coords, Color::from_rgb(80, 80, 80)))
-        .map_err(|err| DrawError::DrawTimer(err.to_string()))
+pub fn draw_timer(
+    ctx: &mut Context,
+    canvas: &mut Canvas,
+    remaining_time: u64,
+) -> Result<(), DodgerError> {
+    let time = if remaining_time < 10 {
+        format!("00:0{}", remaining_time)
+    } else {
+        format!("00:{}", remaining_time)
+    };
+
+    let timer_button = TextButton::new(
+        Point2 { x: 360.0, y: 30.0 },
+        YELLOW,
+        RectSize::from((100.0, 50.0)),
+        time,
+        Color::BLACK,
+        BUTTON_TEXT_SIZE,
+        "button_font".to_string(),
+    )?;
+
+    draw_ellipse_with_text(ctx, canvas, timer_button)
 }
 
-pub fn draw_score(ctx: &mut Context, text_to_draw: DrawText, font: Font) -> Result<(), DrawError> {
-    let coords = validate_coordinates(text_to_draw.coords)?;
-    let score = text_to_draw.text.clone();
-    let level_score_display = Text::new((text_to_draw.text, font, text_to_draw.size));
-    queue_text(
-        ctx,
-        &level_score_display,
-        [coords.x, coords.y],
-        Some(text_to_draw.color),
-    );
+pub fn draw_score(canvas: &mut Canvas, score: DrawText) -> Result<(), DodgerError> {
+    let coords = validate_coordinates(score.coords)?;
+    let draw_params = DrawParam::default().dest(coords);
 
-    draw_queued_text(ctx, DrawParam::default(), None, FilterMode::Linear)
-        .map_err(|err| DrawError::DrawScore(score, err.to_string()))
+    canvas.draw(&score.text, draw_params);
+    Ok(())
 }
 
-pub fn draw_icon(ctx: &mut Context, icon_button: &IconButton) -> Result<(), DrawError> {
+pub fn draw_icon(canvas: &mut Canvas, icon_button: &IconButton) -> Result<(), DodgerError> {
     let coords = validate_coordinates(icon_button.coords)?;
     let draw_params = DrawParam::default().dest(coords).scale(icon_button.scaling);
 
-    draw(ctx, &icon_button.icon, draw_params)
-        .map_err(|err| DrawError::DrawIconButton(err.to_string()))
+    canvas.draw(&icon_button.icon, draw_params);
+    Ok(())
 }
 
 pub fn draw_button_with_text(
     ctx: &mut Context,
+    canvas: &mut Canvas,
     text_button: TextButton,
-    font: Font,
-) -> Result<(), DrawError> {
-    let button_coords = validate_coordinates(text_button.coords)?;
-    let button_rect = Rect::new(
-        button_coords.x,
-        button_coords.y,
-        text_button.size.w,
-        text_button.size.h,
-    );
-    let new_rect =
-        &Mesh::new_rectangle(ctx, DrawMode::fill(), button_rect, text_button.button_color)
-            .map_err(|err| DrawError::BuildRect(err.to_string()))?;
+) -> Result<(), DodgerError> {
+    let button_rect = text_button_rect(&text_button)?;
 
-    draw(ctx, new_rect, DrawParam::default())
-        .map_err(|err| DrawError::DrawRect(err.to_string()))?;
+    let new_rect = Mesh::new_rectangle(
+        &ctx.gfx,
+        DrawMode::fill(),
+        button_rect,
+        text_button.button_color,
+    )
+    .map_err(|err| DodgerError::BuildRect(err.to_string()))?;
 
-    let button_text = Text::new((text_button.text, font, text_button.text_size));
-    let text_width = button_text.width(ctx);
-    let text_height = button_text.height(ctx);
+    canvas.draw(&new_rect, DrawParam::default());
 
-    let text_x = button_rect.x + (button_rect.w - text_width) / 2.0;
-    let text_y = button_rect.y + (button_rect.h - text_height) / 2.0;
+    if let Some(text_size) = text_button.text.dimensions(ctx) {
+        let text_width = text_size.w;
+        let text_height = text_size.h;
 
-    let text_coords = validate_coordinates(Point2 {
-        x: text_x,
-        y: text_y,
-    })?;
+        let text_x = button_rect.x + (button_rect.w - text_width) / 2.0;
+        let text_y = button_rect.y + (button_rect.h - text_height) / 2.0;
 
-    draw(ctx, &button_text, (text_coords, text_button.text_color))
-        .map_err(|err| DrawError::DrawTextButton(err.to_string()))
+        canvas.draw(
+            &text_button.text,
+            DrawParam::default().dest(Point2 {
+                x: text_x,
+                y: text_y,
+            }),
+        );
+    }
+
+    Ok(())
+}
+
+pub fn draw_ellipse_with_text(
+    ctx: &mut Context,
+    canvas: &mut Canvas,
+    button: TextButton,
+) -> Result<(), DodgerError> {
+    let ellipse = Mesh::new_ellipse(
+        &ctx.gfx,
+        DrawMode::fill(),
+        Point2::from_slice(&[button.coords.x, button.coords.y]),
+        button.button_size.w / 2.0,
+        button.button_size.h / 2.0,
+        0.1,
+        button.button_color,
+    )
+    .map_err(|err| DodgerError::BuildEllipse(err.to_string()))?;
+
+    canvas.draw(&ellipse, DrawParam::default());
+
+    if let Some(text_size) = button.text.dimensions(ctx) {
+        let text_width = text_size.w;
+        let text_height = text_size.h;
+
+        let text_x = button.coords.x - (text_width / 2.0);
+        let text_y = button.coords.y - (text_height / 2.0);
+
+        canvas.draw(
+            &button.text,
+            DrawParam::default().dest(Point2 {
+                x: text_x,
+                y: text_y,
+            }),
+        );
+    }
+    Ok(())
 }

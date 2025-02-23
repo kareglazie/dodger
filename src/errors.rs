@@ -2,7 +2,7 @@ use ggez::GameError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ResourceError {
+pub enum DodgerError {
     #[error("No file path matching sound key in resources: {0}")]
     InvalidSoundKey(String),
 
@@ -20,10 +20,7 @@ pub enum ResourceError {
 
     #[error("Unexpected error occurred")]
     Unexpected,
-}
 
-#[derive(Debug, Error)]
-pub enum DrawError {
     #[error("The coordinates (x={0}, y={1}) are beyond the game field boundaries. Game field size is {2} - {3}")]
     InvalidCoordinates(f32, f32, f32, f32),
 
@@ -54,27 +51,18 @@ pub enum DrawError {
     #[error("Failed to build a rectangle, error: {0}")]
     BuildRect(String),
 
+    #[error("Failed to build an ellipse, error: {0}")]
+    BuildEllipse(String),
+
     #[error("Failed to render a rectangle, error: {0}")]
     DrawRect(String),
 
-    #[error("Failed to load resource: {0}")]
-    ResourceError(String),
+    #[error("Failed to render an ellipse, error: {0}")]
+    DrawEllipse(String),
 }
 
-impl From<ResourceError> for GameError {
-    fn from(err: ResourceError) -> Self {
+impl From<DodgerError> for GameError {
+    fn from(err: DodgerError) -> Self {
         GameError::CustomError(format!("{}", err))
-    }
-}
-
-impl From<DrawError> for GameError {
-    fn from(err: DrawError) -> Self {
-        GameError::CustomError(format!("{}", err))
-    }
-}
-
-impl From<ResourceError> for DrawError {
-    fn from(err: ResourceError) -> Self {
-        DrawError::ResourceError(format!("{}", err))
     }
 }

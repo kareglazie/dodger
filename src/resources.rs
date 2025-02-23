@@ -1,33 +1,25 @@
 use ggez::{
-    graphics::{Font, Image},
+    graphics::{FontData, Image},
     Context,
 };
 
-use crate::{errors::ResourceError, levels::Level};
+use crate::{errors::DodgerError, levels::Level};
 
-pub struct Fonts {
-    pub level_font: Font,
-    pub lives_font: Font,
-    pub score_font: Font,
-}
+pub fn add_fonts(ctx: &mut Context) -> Result<(), DodgerError> {
+    let button_font_path = "/Fonts/aloevera.ttf";
+    let text_font_path = "/Fonts/superfunky.ttf";
+    ctx.gfx.add_font(
+        "button_font",
+        FontData::from_path(ctx, button_font_path)
+            .map_err(|_| DodgerError::InvalidFontPath(button_font_path.to_string()))?,
+    );
+    ctx.gfx.add_font(
+        "text_font",
+        FontData::from_path(ctx, text_font_path)
+            .map_err(|_| DodgerError::InvalidFontPath(text_font_path.to_string()))?,
+    );
 
-impl Fonts {
-    pub fn new(ctx: &mut Context) -> Result<Self, ResourceError> {
-        let level_font_path = "/Fonts/aloevera.ttf";
-        let lives_font_path = "/Fonts/sparkystones.ttf";
-        let score_font_path = "/Fonts/supercharge.otf";
-        let level_font = Font::new(ctx, level_font_path)
-            .map_err(|_| ResourceError::InvalidFontPath(level_font_path.to_string()))?;
-        let lives_font = Font::new(ctx, lives_font_path)
-            .map_err(|_| ResourceError::InvalidFontPath(lives_font_path.to_string()))?;
-        let score_font = Font::new(ctx, score_font_path)
-            .map_err(|_| ResourceError::InvalidFontPath(score_font_path.to_string()))?;
-        Ok(Self {
-            level_font,
-            lives_font,
-            score_font,
-        })
-    }
+    Ok(())
 }
 pub struct Resources {
     pub player_image: Image,
@@ -38,13 +30,12 @@ pub struct Resources {
     pub good_object_medium_image: Image,
     pub good_object_low_image: Image,
     pub pause_button_image: Image,
-    pub fonts: Fonts,
     pub level: Level,
 }
 
 impl Resources {
-    fn load_image(ctx: &mut Context, path: &str) -> Result<Image, ResourceError> {
-        Image::new(ctx, path).map_err(|_| ResourceError::InvalidImagePath(path.to_string()))
+    fn load_image(ctx: &mut Context, path: &str) -> Result<Image, DodgerError> {
+        Image::from_path(ctx, path).map_err(|_| DodgerError::InvalidImagePath(path.to_string()))
     }
 
     fn formatted_image_path(template: &str, image_type: &str) -> String {
@@ -55,7 +46,7 @@ impl Resources {
         ctx: &mut Context,
         index: usize,
         levels: &[Level],
-    ) -> Result<Self, ResourceError> {
+    ) -> Result<Self, DodgerError> {
         let level = &levels[index];
 
         let player_path = Self::formatted_image_path(level.image_template, "player.png");
@@ -69,7 +60,6 @@ impl Resources {
             Self::formatted_image_path(level.image_template, "/Good_Objects/medium.png");
         let good_object_low_path =
             Self::formatted_image_path(level.image_template, "/Good_Objects/low.png");
-        let fonts = Fonts::new(ctx)?;
         let player_image = Self::load_image(ctx, &player_path)?;
         let bad_object_image = Self::load_image(ctx, &bad_object_path)?;
         let good_object_high_image = Self::load_image(ctx, &good_object_high_path)?;
@@ -88,7 +78,6 @@ impl Resources {
             background_image,
             menu_background_image,
             pause_button_image,
-            fonts,
             level: level.clone(),
         })
     }

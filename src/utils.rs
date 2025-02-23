@@ -1,7 +1,6 @@
 use ggez::{
     event::MouseButton,
     graphics::{Color, Rect},
-    input::mouse,
     mint::{Point2, Vector2},
     Context,
 };
@@ -12,7 +11,7 @@ use crate::{
         BUTTON_SPACING, BUTTON_TEXT_SIZE, OBJECT_SCALING, PLAYER_SCALING, TEXT_BUTTON_HEIGHT,
         TEXT_BUTTON_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
     },
-    errors::DrawError,
+    errors::DodgerError,
 };
 
 /// Размер прямоугольника
@@ -31,9 +30,9 @@ impl From<(f32, f32)> for RectSize {
     }
 }
 
-pub fn validate_coordinates(coords: Point2<f32>) -> Result<Point2<f32>, DrawError> {
+pub fn validate_coordinates(coords: Point2<f32>) -> Result<Point2<f32>, DodgerError> {
     if coords.x < 0.0 || coords.x > WINDOW_WIDTH || coords.y < 0.0 || coords.y > WINDOW_HEIGHT {
-        Err(DrawError::InvalidCoordinates(
+        Err(DodgerError::InvalidCoordinates(
             coords.x,
             coords.y,
             WINDOW_WIDTH,
@@ -56,20 +55,27 @@ pub fn start_point_of_centered_button() -> Point2<f32> {
 }
 
 pub fn start_point_of_button_in_set(button_index: usize, start_y: f32) -> Point2<f32> {
-    Point2::from_slice(&[
-        (WINDOW_WIDTH / 2.0) - (TEXT_BUTTON_WIDTH / 2.0),
-        start_y + (button_index as f32 * (TEXT_BUTTON_HEIGHT + BUTTON_SPACING)),
-    ])
+    let x = (WINDOW_WIDTH / 2.0) - (TEXT_BUTTON_WIDTH / 2.0);
+    let y = start_y + (button_index as f32 * (TEXT_BUTTON_HEIGHT + BUTTON_SPACING));
+
+    Point2::from_slice(&[x, y])
 }
 
-pub fn get_level_button(level_index: usize, start_y: f32) -> Result<TextButton, DrawError> {
+pub fn get_level_button(
+    level_index: usize,
+    start_y: f32,
+    font: String,
+) -> Result<TextButton, DodgerError> {
+    let button_coords = start_point_of_button_in_set(level_index, start_y);
+
     TextButton::new(
-        start_point_of_button_in_set(level_index, start_y),
+        button_coords,
+        Color::WHITE,
         text_button_rectsize(),
         format!("Level {}", level_index + 1),
-        BUTTON_TEXT_SIZE,
         Color::BLACK,
-        Color::WHITE,
+        BUTTON_TEXT_SIZE,
+        font,
     )
 }
 
@@ -92,23 +98,25 @@ pub fn icon_button_size(button: &IconButton) -> (f32, f32) {
     )
 }
 
-pub fn icon_button_rect(button: &IconButton) -> Rect {
+pub fn icon_button_rect(button: &IconButton) -> Result<Rect, DodgerError> {
+    let button_coords = validate_coordinates(button.coords)?;
     let (w, h) = icon_button_size(button);
-    Rect::new(button.coords.x, button.coords.y, w, h)
+    Ok(Rect::new(button_coords.x, button_coords.y, w, h))
 }
 
-pub fn text_button_rect(button: &TextButton) -> Rect {
-    Rect::new(
-        button.coords.x,
-        button.coords.y,
-        button.size.w,
-        button.size.h,
-    )
+pub fn text_button_rect(button: &TextButton) -> Result<Rect, DodgerError> {
+    let button_coords = validate_coordinates(button.coords)?;
+    Ok(Rect::new(
+        button_coords.x,
+        button_coords.y,
+        TEXT_BUTTON_WIDTH,
+        TEXT_BUTTON_HEIGHT,
+    ))
 }
 
 pub fn is_button_clicked(ctx: &mut Context, button_rect: Rect) -> bool {
-    if mouse::button_pressed(ctx, MouseButton::Left) {
-        let mouse_position = mouse::position(ctx);
+    if ctx.mouse.button_pressed(MouseButton::Left) {
+        let mouse_position = ctx.mouse.position();
         button_rect.contains(mouse_position)
     } else {
         false

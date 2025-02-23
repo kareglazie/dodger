@@ -1,13 +1,12 @@
 use std::time::Instant;
 
 use ggez::{
-    graphics::{draw, Color, DrawParam, Image, Rect},
+    graphics::{Canvas, Color, DrawParam, Image, Rect},
     mint::{Point2, Vector2},
-    Context,
 };
 
 use crate::{
-    errors::DrawError,
+    errors::DodgerError,
     resources::Resources,
     utils::{validate_coordinates, RectSize},
 };
@@ -32,7 +31,7 @@ impl FallingObject {
         is_good: bool,
         good_object_value: Option<GoodObjectValue>,
         resources: &Resources,
-    ) -> Result<Self, DrawError> {
+    ) -> Result<Self, DodgerError> {
         let validated_coords = validate_coordinates(coords)?;
 
         let image = if is_good {
@@ -76,7 +75,7 @@ impl FallingObject {
         }
     }
 
-    pub fn draw(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    pub fn draw(&mut self, canvas: &mut Canvas) -> Result<(), DodgerError> {
         let mut draw_params = DrawParam::default().dest(self.coords).scale(self.scaling);
 
         if let Some(timer) = self.blink_timer {
@@ -102,7 +101,8 @@ impl FallingObject {
             }
         }
 
-        draw(ctx, &self.image, draw_params).map_err(|err| DrawError::DrawObject(err.to_string()))
+        canvas.draw(&self.image, draw_params);
+        Ok(())
     }
 
     pub fn rect(&self) -> Rect {

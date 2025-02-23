@@ -1,14 +1,14 @@
 use std::time::Instant;
 
 use ggez::{
-    graphics::{draw, Color, DrawParam, Image, Rect},
+    graphics::{Canvas, Color, DrawParam, Image, Rect},
     mint::{Point2, Vector2},
     Context,
 };
 
 use crate::{
     consts::WINDOW_WIDTH,
-    errors::DrawError,
+    errors::DodgerError,
     utils::{validate_coordinates, RectSize},
 };
 
@@ -28,7 +28,7 @@ impl Player {
         coords: Point2<f32>,
         scaling: Vector2<f32>,
         image: &Image,
-    ) -> Result<Self, DrawError> {
+    ) -> Result<Self, DodgerError> {
         let validated_coords = validate_coordinates(coords)?;
         let w = image.width() as f32 * scaling.x;
         let h = image.width() as f32 * scaling.x;
@@ -52,7 +52,7 @@ impl Player {
         self.coords.x += 20.0_f32.min(WINDOW_WIDTH - self.size.w);
     }
 
-    pub fn draw(&mut self, ctx: &mut Context) -> Result<(), DrawError> {
+    pub fn draw(&mut self, canvas: &mut Canvas) -> Result<(), DodgerError> {
         let mut draw_params = DrawParam::default().dest(self.coords).scale(self.scaling);
 
         if let Some(timer) = self.blink_timer {
@@ -63,7 +63,8 @@ impl Player {
             draw_params = draw_params.color(Color::new(1.0, 1.0, 1.0, self.alpha));
         }
 
-        draw(ctx, &self.image, draw_params).map_err(|err| DrawError::DrawPlayer(err.to_string()))
+        canvas.draw(&self.image, draw_params);
+        Ok(())
     }
 
     pub fn rect(&self) -> Rect {
