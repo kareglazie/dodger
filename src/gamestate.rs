@@ -31,6 +31,38 @@ use crate::{
     },
 };
 
+/// **Represents the state of the game, including all game objects, UI elements, and game logic.**
+///
+/// ## Fields
+/// * `total_score`: the player's total score across all levels.
+/// * `level_score`: the player's score for the current level.
+/// * `current_level`: the index of the current level being played.
+/// * `levels`: a list of all available levels.
+/// * `resources`: the game resources, including images, fonts, and sounds.
+/// * `player`: the player object.
+/// * `falling_objects`: a list of objects currently falling in the game.
+/// * `last_update`: the timestamp of the last game update.
+/// * `level_start_time`: the timestamp when the current level started.
+/// * `paused_time`: the timestamp when the game was paused, if applicable.
+/// * `audio`: the audio manager for playing sounds.
+/// * `audio_button`: the button to toggle audio on/off.
+/// * `start_button`: the button to start the game.
+/// * `exit_button`: the button to exit the game.
+/// * `resume_button`: the button to resume the game from pause.
+/// * `menu_button`: the button to enter the main menu.
+/// * `back_to_menu_button`: the button to return to the main menu from the "How to Play" screen.
+/// * `pause_button`: the button to pause the game.
+/// * `next_level_button`: the button to proceed to the next level.
+/// * `restart_button`: the button to restart the current level or the game.
+/// * `select_level_button`: the button to open the level selection screen.
+/// * `howtoplay_button`: the button to open the "How to Play" screen.
+/// * `lives`: the number of lives the player has remaining.
+/// * `game_mode`: the current mode of the game (e.g., Menu, Playing, GameOver).
+/// * `level_complete_sound_played`: whether the level complete sound has been played.
+/// * `victory_sound_played`: whether the victory sound has been played.
+/// * `game_over_sound_played`: whether the game over sound has been played.
+/// * `game_started`: whether the game has started.
+/// * `is_paused`: whether the game is currently paused.
 pub struct GameState {
     total_score: i32,
     level_score: i32,
@@ -64,6 +96,21 @@ pub struct GameState {
 }
 
 impl GameState {
+    /// **Initializes a new `GameState` with default values and resources.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `resources`: the game resources (images, fonts, sounds).
+    /// * `current_level`: index of the starting level.
+    /// * `audio_manager`: the audio manager for playing sounds.
+    ///
+    /// ## Returns
+    /// A result containing the initialized `GameState`, or a `DodgerError` if initialization fails.
+    ///
+    /// ## Behavior
+    /// * Loads fonts.
+    /// * Initializes the player, buttons, and other game objects.
+    /// * Sets up the initial game state (e.g., score, lives, game mode).
     pub fn new(
         ctx: &mut Context,
         resources: Resources,
@@ -218,12 +265,21 @@ impl GameState {
         Ok(game)
     }
 
+    /// **Creates a new falling object and adds it to the game.**
+    ///
+    /// ## Returns
+    /// `Ok(())` if the object is created successfully, or a `DodgerError` if creation fails.
+    ///
+    /// ## Behavior
+    /// * Randomly generates a horizontal position for the object.
+    /// * Determines if the object is "good" or "bad".
+    /// * Assigns a value to "good" objects (`High`, `Medium`, `Low`).
+    /// * Adds the object to the `falling_objects` list.
     fn create_falling_object(&mut self) -> Result<(), DodgerError> {
         let mut rng = rand::thread_rng();
-        let x = rng.gen_range(25.0..WINDOW_WIDTH - 25.0); // Случайная горизонтальная позиция
-        let is_good = self.falling_objects.len() % 5 != 0; // Каждый пятый объект - bad
+        let x = rng.gen_range(25.0..WINDOW_WIDTH - 25.0);
+        let is_good = self.falling_objects.len() % 5 != 0;
         let good_object_value = if is_good {
-            // Случайно выбираем значение для "хорошего" объекта
             match rng.gen_range(0..10) {
                 0 => Some(GoodObjectValue::High),
                 1 | 3 | 5 => Some(GoodObjectValue::Medium),
@@ -246,6 +302,20 @@ impl GameState {
         Ok(())
     }
 
+    ///**Handles collisions between the player and falling objects.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if collisions are handled successfully, or a `DodgerError` if sound playback fails.
+    ///
+    /// ## Behavior
+    /// * Checks for collisions between the player and each falling object.
+    /// * Updates the score if the player catches a "good" object.
+    /// * Reduces lives if the player collides with a "bad" object.
+    /// * Plays appropriate sounds for collisions.
+    /// * Removes objects that have been caught or have expired.
     fn handle_collisions(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         let player_rect = self.player.rect();
 
@@ -276,34 +346,43 @@ impl GameState {
                             self.audio.play_sound(ctx, "good_collision".to_string())?;
                         }
                     }
-                    obj.remove_timer = Some(Instant::now()); // Удаляем "хороший" объект сразу
+                    obj.remove_timer = Some(Instant::now());
                 } else {
                     self.audio.play_sound(ctx, "bad_collision".to_string())?;
                     self.lives -= 1;
                     if self.lives == 0 {
                         self.game_mode = GameMode::GameOver;
                     }
-                    obj.remove_timer = Some(Instant::now()); // Запускаем таймер для удаления
-                    obj.blink_timer = Some(Instant::now()); // Запускаем таймер для мигания "плохого" объекта
-                    self.player.blink_timer = Some(Instant::now()); // Запускаем таймер для мигания игрока при столкновении с "плохим" объектом
+                    obj.remove_timer = Some(Instant::now());
+                    obj.blink_timer = Some(Instant::now());
+                    self.player.blink_timer = Some(Instant::now());
                 }
             }
         }
-        // Удаляем объекты, у которых таймер истек
+
         self.falling_objects.retain(|obj| {
             if let Some(timer) = obj.remove_timer {
-                if obj.is_good || timer.elapsed() >= Duration::from_secs(1) {
-                    false // Удалить объект
-                } else {
-                    true // Оставить объект
-                }
+                !(obj.is_good || timer.elapsed() >= Duration::from_secs(1))
             } else {
-                true // Оставить объект, если таймер не запущен
+                true
             }
         });
         Ok(())
     }
 
+    /// **Resets the game state for a new level or restart.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the reset is successful, or a `DodgerError` if resource loading fails.
+    ///
+    /// ## Behavior
+    /// * Resets the score, lives, and timers.
+    /// * Clears the list of falling objects.
+    /// * Loads resources for the current level.
+    /// * Sets the game mode to `Playing`.
     fn reset(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if self.game_mode == GameMode::GameOver
             || self.game_mode == GameMode::Victory
@@ -336,6 +415,11 @@ impl GameState {
         Ok(())
     }
 
+    /// **Pauses the game.**
+    ///
+    /// ## Behavior
+    /// * Records the current time as the pause start time.
+    /// * Sets `is_paused` to `true`.
     fn pause(&mut self) {
         if self.game_mode == GameMode::Playing {
             self.paused_time = Some(Instant::now());
@@ -343,6 +427,12 @@ impl GameState {
         }
     }
 
+    /// **Resumes the game from pause.**
+    ///
+    /// ## Behavior
+    /// * Calculates the duration of the pause.
+    /// * Adjusts the game timers to account for the pause duration.
+    /// * Sets `is_paused` to `false`.
     fn resume(&mut self) {
         if self.is_paused {
             if let Some(paused_time) = self.paused_time {
@@ -355,6 +445,14 @@ impl GameState {
         }
     }
 
+    /// **Calculates the remaining time for the current level.**
+    ///
+    /// ## Returns
+    /// The remaining time in seconds.
+    ///
+    /// ## Behavior
+    /// * If the game is paused, calculates the remaining time based on the pause start time.
+    /// * If the game is not paused, calculates the remaining time based on the current time.
     fn get_remaining_time(&self) -> u64 {
         if self.is_paused {
             let elapsed = self.last_update.duration_since(self.level_start_time);
@@ -367,6 +465,16 @@ impl GameState {
         }
     }
 
+    /// **Updates the game state when in the main menu.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a 'DodgerError` if button handling fails.
+    ///
+    /// ## Behavior
+    /// Handles button clicks for starting/resuming the game, selecting levels, opening the "How to Play" screen, and exiting the game.
     fn update_menu(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_started {
             if is_button_clicked(ctx, text_button_rect(&self.start_button)?) {
@@ -398,6 +506,14 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the main menu on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if button drawing fails.
     fn draw_menu(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
         draw_background(canvas, &self.resources.menu_background_image);
         if !self.game_started {
@@ -411,6 +527,18 @@ impl GameState {
         Ok(())
     }
 
+    /// **Updates the game state when in the playing mode.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` if object creation or collision handling fails.
+    ///
+    /// ## Behavior
+    /// * Handles button clicks for toggling audio and returning to the menu.
+    /// * Updates falling objects and checks for collisions.
+    /// * Advances to the next level or victory screen if the level is complete.
     fn update_playing(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_started {
             self.game_started = true;
@@ -459,9 +587,20 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the game state when in the playing mode.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if text or button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background, player, falling objects, and UI elements (score, timer, lives).
     fn draw_playing(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
         draw_background(canvas, &self.resources.background_image);
-        self.player.draw(canvas)?;
+        self.player.draw(canvas);
         draw_button_with_text(ctx, canvas, self.menu_button.clone())?;
 
         let text = format!("Level {}", self.current_level + 1);
@@ -481,7 +620,7 @@ impl GameState {
         };
         draw_icon(canvas, &self.audio_button)?;
         for obj in &mut self.falling_objects {
-            obj.draw(canvas)?;
+            obj.draw(canvas);
         }
 
         let level_score_text = format!("Level Score: {}", self.level_score);
@@ -522,6 +661,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Updates the game state when in the "Next Level" mode.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` if sound playback fails.
+    ///
+    /// ## Behavior
+    /// * Plays the "level completed" sound.
+    /// * Handles button clicks for proceeding to the next level.
     fn update_next_level(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.level_complete_sound_played {
             self.audio.play_sound(ctx, "level_completed".to_string())?;
@@ -536,6 +686,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the "Next Level" screen on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if text or button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background, "Level Complete" text, and a button to proceed to the next level.
     fn draw_next_level(
         &mut self,
         ctx: &mut Context,
@@ -553,7 +714,13 @@ impl GameState {
         draw_button_with_text(ctx, canvas, self.next_level_button.clone())?;
         Ok(())
     }
-
+    /// **Updates the game state when in "How to Play" screen.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` if button handling fails.
     fn update_how_to_play(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if is_button_clicked(ctx, text_button_rect(&self.back_to_menu_button)?) {
             self.game_mode = GameMode::Menu;
@@ -561,6 +728,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the "How to Play" screen on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if text or button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background, title, instructions, and a button to return to the main menu.
     fn draw_how_to_play(
         &mut self,
         ctx: &mut Context,
@@ -605,7 +783,17 @@ impl GameState {
 
         Ok(())
     }
-
+    /// **Updates the game state when in "Game Over" mode.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` if sound playback fails.
+    ///
+    /// ## Behavior
+    /// * Plays the "game over" sound.
+    /// * Handles button clicks for restarting the game.
     fn update_game_over(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.game_over_sound_played {
             self.audio.play_sound(ctx, "game_over".to_string())?;
@@ -617,7 +805,17 @@ impl GameState {
         }
         Ok(())
     }
-
+    /// **Draws the "Game Over" screen on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if text or button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background, "Game Over" text, and a restart button.
     fn draw_game_over(
         &mut self,
         ctx: &mut Context,
@@ -637,6 +835,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Updates the game state when in "Victory" mode.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` error if sound playback fails.
+    ///
+    /// ## Behavior
+    /// * Plays the "victory" sound.
+    /// * Handles button clicks for restarting the game.
     fn update_victory(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         if !self.victory_sound_played {
             self.audio.play_sound(ctx, "victory".to_string())?;
@@ -649,6 +858,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the "Victory" screen on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: ccanvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if text or button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background, victory text, final score, and a restart button.
     fn draw_victory(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<(), DodgerError> {
         draw_background(canvas, &self.resources.background_image);
         let game_complete_text = DrawText::new(
@@ -673,6 +893,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Updates the game state when in "Level Selection" mode.**
+    ///
+    /// ## Parameters
+    /// `ctx`: the game context.
+    ///
+    /// ## Returns
+    /// `Ok(())` if the update is successful, or a `DodgerError` if button handling fails.
+    ///
+    /// ## Behavior
+    /// * Handles button clicks for selecting a level.
+    /// * Resets the game state to start the selected level.
     fn update_select_level(&mut self, ctx: &mut Context) -> Result<(), DodgerError> {
         let levels = self.levels.clone();
         for (i, _) in levels.iter().enumerate() {
@@ -687,6 +918,17 @@ impl GameState {
         Ok(())
     }
 
+    /// **Draws the "Level Selection" screen on the canvas.**
+    ///
+    /// ## Parameters
+    /// * `ctx`: the game context.
+    /// * `canvas`: canvas to draw on.
+    ///
+    /// ## Returns
+    /// `Ok(())` if drawing is successful, or a `DodgerError` if button drawing fails.
+    ///
+    /// ## Behavior
+    /// Draws the background and buttons for each available level.
     fn draw_select_level(
         &mut self,
         ctx: &mut Context,

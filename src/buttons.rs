@@ -8,13 +8,23 @@ use ggez::{
 };
 
 #[derive(Clone)]
-/// Кнопка с иконкой
+/// A button with an icon.
 pub struct IconButton {
     pub coords: Point2<f32>,
     pub scaling: Vector2<f32>,
     pub icon: Image,
 }
+
 impl IconButton {
+    /// **Creates a new `IconButton`.**
+    ///
+    /// ## Parameters
+    /// * `coords`: coordinates of the button.
+    /// * `scaling`: scaling vector for the icon.
+    /// * `icon`: image icon to be displayed on the button.
+    ///
+    /// ## Returns
+    /// A result containing the new `IconButton`, or a `DodgerError` if coordinates validation fails.
     pub fn new(
         coords: Point2<f32>,
         scaling: Vector2<f32>,
@@ -30,7 +40,7 @@ impl IconButton {
 }
 
 #[derive(Clone)]
-/// Кнопка с текстом
+/// A button with text.
 pub struct TextButton {
     pub coords: Point2<f32>,
     pub button_color: Color,
@@ -39,6 +49,19 @@ pub struct TextButton {
 }
 
 impl TextButton {
+    /// **Creates a new `TextButton`.**
+    ///
+    /// ## Parameters
+    /// * `coords`: coordinates of the button.
+    /// * `button_color`: color of the button.
+    /// * `button_size`: size of the button in terms of width and height.
+    /// * `line`: text string to be displayed on the button.
+    /// * `text_color`: color of the text.
+    /// * `text_scale`: size of the text.
+    /// * `font`: font for the text.
+    ///
+    /// ## Returns
+    /// A result containing the new `TextButton`, or a `DodgerError` if coordinates validation fails.
     pub fn new(
         coords: Point2<f32>,
         button_color: Color,
@@ -64,12 +87,24 @@ impl TextButton {
     }
 }
 
+/// A structure representing drawable text.
 pub struct DrawText {
     pub coords: Point2<f32>,
     pub text: Text,
 }
 
 impl DrawText {
+    /// **Creates a new `DrawText`.**
+    ///
+    /// ## Parameters
+    /// * `coords`: coordinates where the text will be drawn.
+    /// * `line`: text string to be drawn.
+    /// * `font`: font for the text.
+    /// * `scale`: size of the text.
+    /// * `color`: color of the text.
+    ///
+    /// ## Returns
+    /// A result containing the new `DrawText`, or a `DodgerError` if coordinates validation fails.
     pub fn new(
         coords: Point2<f32>,
         line: String,
