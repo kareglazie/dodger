@@ -647,6 +647,7 @@ dependencies = [
  "ggez",
  "rand",
  "thiserror 2.0.11",
+ "winapi",
 ]
 
 [[package]]

@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use dodger::consts::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use dodger::gamestate::GameState;
 use dodger::levels::get_levels;
